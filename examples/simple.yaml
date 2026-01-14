@@ -1,0 +1,15 @@
+name: "Simple Test Pipeline"
+
+steps:
+  - id: "greet"
+    name: "Greeting"
+    prompt: "Say hello to the world in a friendly way."
+    termination:
+      success_pattern: "DONE"
+      on_success: "farewell"
+
+  - id: "farewell"
+    name: "Farewell"
+    prompt: "Say goodbye to the world."
+    termination:
+      success_pattern: "DONE"

@@ -1,0 +1,72 @@
+name: "Feature Development Pipeline"
+version: "1.0"
+
+variables:
+  feature_name: "user authentication"
+  context_file: "./docs/context.md"
+
+steps:
+  - id: "planning"
+    name: "Create Implementation Plan"
+    prompt: |
+      Create a detailed implementation plan for {{ feature_name }}.
+      Use the context in {{ context_file }}.
+    termination:
+      success_pattern: "✅ PLAN COMPLETE"
+      on_success: "implementation"
+    continuation:
+      pattern: "🔄 MORE_THOUGHT_NEEDED"
+      action: "retry"
+
+  - id: "implementation"
+    name: "Implement the Feature"
+    depends_on: ["planning"]
+    prompt: |
+      Implement the feature based on this plan:
+      {{ steps.planning.output }}
+
+      Include all necessary code, tests, and documentation.
+    termination:
+      success_pattern: "✅ IMPLEMENTATION_DONE"
+      on_success: "review"
+      on_failure: "review"
+    continuation:
+      pattern: "🔄 CONTINUE"
+      action: "retry"
+
+  - id: "review"
+    name: "Review Implementation"
+    depends_on: ["implementation"]
+    prompt: |
+      Review this implementation:
+      {{ steps.implementation.output }}
+
+      Check for:
+      - Correctness
+      - Code quality
+      - Test coverage
+      - Documentation completeness
+
+      If issues found, specify what's missing.
+    termination:
+      success_pattern: "✅ APPROVED"
+      on_success: "deploy"
+      on_failure: "implementation"
+    continuation:
+      pattern: "🔄 NEEDS_REVISION"
+      action: "route"
+      target: "implementation"
+      carry_notes: true
+
+  - id: "deploy"
+    name: "Deploy Feature"
+    depends_on: ["review"]
+    prompt: |
+      Prepare deployment for approved implementation.
+
+      Include:
+      - Deployment checklist
+      - Rollback plan
+      - Monitoring setup
+    termination:
+      success_pattern: "✅ DEPLOYED"

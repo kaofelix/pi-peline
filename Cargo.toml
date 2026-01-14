@@ -1,0 +1,49 @@
+[package]
+name = "pipeline"
+version = "0.1.0"
+edition = "2021"
+description = "A CI/CD pipeline tool powered by Pi agent"
+repository = "https://github.com/yourusername/pipeline"
+license = "MIT"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# YAML parsing
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+regex = "1.11"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# JSON for structured data
+serde_json = "1.0"
+
+# Persistence
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid"], optional = true }
+dirs = "5.0"
+async-trait = "0.1.89"
+console = { version = "0.16.2", features = ["ansi-parsing"] }
+indicatif = "0.18.3"
+
+[features]
+default = ["sqlite"]
+sqlite = ["sqlx"]
+
+[[bin]]
+name = "pipeline"
+path = "src/main.rs"
