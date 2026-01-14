@@ -5,3 +5,4 @@ mod retry_behavior;
 mod review_loop;
 mod failure_handling;
 mod max_retries;
+mod variable_substitution;

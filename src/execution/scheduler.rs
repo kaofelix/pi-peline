@@ -63,9 +63,6 @@ impl ExecutionScheduler {
             .map(|s| s.id.clone())
             .collect();
 
-        eprintln!("DEBUG: explicit_queue = {:?}, completed_or_failed = {:?}",
-            self.explicit_queue, completed_or_failed);
-
         let mut ready = Vec::new();
 
         for step_id in &self.explicit_queue {
@@ -73,11 +70,8 @@ impl ExecutionScheduler {
                 // Check if step is ready (Pending or Retrying) and dependencies satisfied
                 let is_ready = matches!(step.state, StepState::Pending | StepState::Retrying { .. });
                 let deps_met = step.dependencies_met(&completed_or_failed);
-                eprintln!("DEBUG: Checking step {}: state={:?}, is_ready={}, deps_met={}",
-                    step_id, step.state, is_ready, deps_met);
                 if is_ready && deps_met {
                     ready.push(step_id.clone());
-                    eprintln!("DEBUG: Selected step {}", step_id);
                     if self.strategy == SchedulingStrategy::Sequential {
                         break; // Only one at a time for sequential
                     }

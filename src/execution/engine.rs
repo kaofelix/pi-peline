@@ -422,8 +422,6 @@ impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
                 scheduler.enqueue(step_id.to_string());
             }
             ContinueAction::Route(target_id) => {
-                eprintln!("DEBUG: Route {} -> {}", step_id, target_id);
-
                 self.emit_event(ExecutionEvent::StepRerouted {
                     from_step: step_id.to_string(),
                     to_step: target_id.clone(),
@@ -463,8 +461,6 @@ impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
                 };
 
                 if let Some(step) = pipeline.step_mut(&target_id) {
-                    eprintln!("DEBUG: Resetting {} to Retrying(attempt={}) from state={:?}",
-                        target_id, target_attempt, step.state);
                     step.state = StepState::Retrying {
                         attempt: target_attempt,
                     };
