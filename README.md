@@ -1,5 +1,7 @@
 # pi-peline
 
+> Warning: this is a 100% vibe coded experiment, not recommended for serious usage. The README might be misleading and mention incomplete or unimplemented features
+
 An AI agent orchestration tool for executing multi-step workflows through the Pi CLI coding agent.
 
 ## What is pi-peline?
