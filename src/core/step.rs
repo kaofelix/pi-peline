@@ -1,26 +1,18 @@
 //! Step domain model
 
 use crate::core::{
-    config::{TerminationConfig, ContinuationConfig, ContinuationAction},
+    config::ContinuationAction,
     condition::TerminationCondition,
     state::StepState,
 };
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// A single step in a pipeline
 #[derive(Debug, Clone)]
 pub struct Step {
     /// Unique step identifier
     pub id: String,
-
-    /// Human-readable step name
-    pub name: String,
-
-    /// Optional step description
-    pub description: Option<String>,
 
     /// The base prompt template for this step
     pub prompt_template: String,
@@ -40,9 +32,6 @@ pub struct Step {
     /// Timeout in seconds
     pub timeout_secs: u64,
 
-    /// Whether this step can run in parallel with other independent steps
-    pub allow_parallel: bool,
-
     /// Runtime state (not serialized)
     pub state: StepState,
 }
@@ -58,9 +47,6 @@ pub struct ContinuationCondition {
 
     /// Target step ID when action is Route
     pub target: Option<String>,
-
-    /// Whether to pass notes/context when routing
-    pub carry_notes: bool,
 }
 
 /// Pattern for matching agent output (not serializable due to Regex)
@@ -119,28 +105,24 @@ impl Step {
                 pattern,
                 action: c.action,
                 target: c.target.clone(),
-                carry_notes: c.carry_notes,
             }
         });
 
         Step {
             id: config.id.clone(),
-            name: config.name.clone(),
-            description: config.description.clone(),
             prompt_template: config.prompt.clone(),
             dependencies: config.depends_on.clone(),
             termination,
             continuation,
             max_retries: config.max_retries.unwrap_or(defaults.max_retries),
             timeout_secs: config.timeout_secs.unwrap_or(defaults.timeout_secs),
-            allow_parallel: config.allow_parallel,
             state: StepState::Pending,
         }
     }
 
-    /// Check if all dependencies are satisfied
-    pub fn dependencies_satisfied(&self, completed_steps: &HashSet<String>) -> bool {
-        self.dependencies.iter().all(|dep| completed_steps.contains(dep))
+    /// Check if all dependencies are satisfied (considering both completed and failed steps)
+    pub fn dependencies_met(&self, completed_or_failed_steps: &HashSet<String>) -> bool {
+        self.dependencies.iter().all(|dep| completed_or_failed_steps.contains(dep))
     }
 
     /// Render the prompt with variable substitution
@@ -232,8 +214,6 @@ impl ConditionPattern {
         }
     }
 }
-
-/// Default values for step configuration
 #[derive(Debug, Clone)]
 pub struct StepDefaults {
     pub max_retries: usize,
@@ -259,15 +239,12 @@ mod tests {
     fn test_render_prompt() {
         let step = Step {
             id: "test".to_string(),
-            name: "Test".to_string(),
-            description: None,
             prompt_template: "Do {{ task }} with {{ item }}".to_string(),
             dependencies: vec![],
             termination: None,
             continuation: None,
             max_retries: 3,
             timeout_secs: 300,
-            allow_parallel: false,
             state: StepState::Pending,
         };
 

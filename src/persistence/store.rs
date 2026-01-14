@@ -176,58 +176,6 @@ impl PersistenceBackend for SqliteExecutionStore {
             .collect()
     }
 
-    async fn get_latest_execution(
-        &self,
-        pipeline_name: &str,
-    ) -> Result<Option<ExecutionSummary>> {
-        let row = sqlx::query(
-            r#"
-            SELECT id, pipeline_name, status, started_at, completed_at, progress, completed_steps, total_steps
-            FROM executions
-            WHERE pipeline_name = ?1
-            ORDER BY started_at DESC
-            LIMIT 1
-            "#,
-        )
-        .bind(pipeline_name)
-        .fetch_optional(&self.pool)
-        .await
-        .context("Failed to get latest execution")?;
-
-        if let Some(row) = row {
-            Ok(Some(ExecutionSummary {
-                execution_id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                pipeline_name: row.get("pipeline_name"),
-                status: match row.get::<String, _>("status").as_str() {
-                    "Pending" => crate::core::ExecutionStatus::Pending,
-                    "Running" => crate::core::ExecutionStatus::Running,
-                    "Completed" => crate::core::ExecutionStatus::Completed,
-                    "Failed" => crate::core::ExecutionStatus::Failed,
-                    "Cancelled" => crate::core::ExecutionStatus::Cancelled,
-                    "Paused" => crate::core::ExecutionStatus::Paused,
-                    _ => crate::core::ExecutionStatus::Pending,
-                },
-                started_at: Self::from_naive(row.get("started_at")),
-                completed_at: row.get::<Option<NaiveDateTime>, _>("completed_at").map(Self::from_naive),
-                progress: row.get("progress"),
-                completed_steps: row.get::<i64, _>("completed_steps") as usize,
-                total_steps: row.get::<i64, _>("total_steps") as usize,
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn delete_execution(&self, execution_id: Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM executions WHERE id = ?1")
-            .bind(execution_id.to_string())
-            .execute(&self.pool)
-            .await
-            .context("Failed to delete execution")?;
-
-        Ok(())
-    }
-
     async fn list_pipelines(&self) -> Result<Vec<String>> {
         let rows = sqlx::query(
             r#"

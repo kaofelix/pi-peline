@@ -6,18 +6,13 @@ use crate::core::{
     state::{PipelineState, ExecutionStatus},
     context::PipelineContext,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
 
 /// A pipeline definition
 #[derive(Debug, Clone)]
 pub struct Pipeline {
     /// Pipeline name
     pub name: String,
-
-    /// Pipeline version (optional)
-    pub version: Option<String>,
 
     /// Global variables available to all steps
     pub variables: HashMap<String, String>,
@@ -53,7 +48,6 @@ impl Pipeline {
 
         Pipeline {
             name: config.name.clone(),
-            version: config.version.clone(),
             variables: config.variables.clone(),
             steps,
             state: PipelineState::new(),
@@ -73,18 +67,20 @@ impl Pipeline {
 
     /// Get steps ready to execute (dependencies satisfied)
     pub fn ready_steps(&self) -> Vec<&Step> {
-        let completed: HashSet<String> = self
+        let completed_or_failed: HashSet<String> = self
             .steps
             .values()
-            .filter(|s| matches!(s.state, crate::core::state::StepState::Completed { .. }))
+            .filter(|s| {
+                matches!(s.state, crate::core::state::StepState::Completed { .. } | crate::core::state::StepState::Failed { .. })
+            })
             .map(|s| s.id.clone())
             .collect();
 
         self.steps
             .values()
             .filter(|s| {
-                matches!(s.state, crate::core::state::StepState::Pending)
-                    && s.dependencies_satisfied(&completed)
+                matches!(s.state, crate::core::state::StepState::Pending | crate::core::state::StepState::Retrying { .. })
+                    && s.dependencies_met(&completed_or_failed)
             })
             .collect()
     }
@@ -185,7 +181,6 @@ impl Pipeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::{StepConfig, TerminationConfig};
 
     #[test]
     fn test_topological_sort() {

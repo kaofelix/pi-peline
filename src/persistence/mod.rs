@@ -56,15 +56,6 @@ pub trait PersistenceBackend: Send + Sync {
         pipeline_name: &str,
     ) -> Result<Vec<ExecutionSummary>>;
 
-    /// Get the latest execution for a pipeline
-    async fn get_latest_execution(
-        &self,
-        pipeline_name: &str,
-    ) -> Result<Option<ExecutionSummary>>;
-
-    /// Delete an execution
-    async fn delete_execution(&self, execution_id: Uuid) -> Result<()>;
-
     /// List all pipeline names
     async fn list_pipelines(&self) -> Result<Vec<String>>;
 }
@@ -128,38 +119,6 @@ impl PersistenceBackend for InMemoryPersistence {
         } else {
             Ok(Vec::new())
         }
-    }
-
-    async fn get_latest_execution(
-        &self,
-        pipeline_name: &str,
-    ) -> Result<Option<ExecutionSummary>> {
-        let execs = self.executions.read().await;
-        let by_pipeline = self.by_pipeline.read().await;
-
-        if let Some(ids) = by_pipeline.get(pipeline_name) {
-            ids.iter()
-                .filter_map(|id| execs.get(id))
-                .max_by_key(|e| e.started_at)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("No executions found"))
-                .map(Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn delete_execution(&self, execution_id: Uuid) -> Result<()> {
-        let mut execs = self.executions.write().await;
-
-        if let Some(exec) = execs.remove(&execution_id) {
-            let mut by_pipeline = self.by_pipeline.write().await;
-            if let Some(ids) = by_pipeline.get_mut(&exec.pipeline_name) {
-                ids.retain(|id| *id != execution_id);
-            }
-        }
-
-        Ok(())
     }
 
     async fn list_pipelines(&self) -> Result<Vec<String>> {

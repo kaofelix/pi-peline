@@ -1,13 +1,11 @@
 //! CLI output formatting
 
 use crate::{
-    core::{ExecutionStatus, StepState},
+    core::{ExecutionStatus},
     persistence::ExecutionSummary,
     execution::ContinueAction,
 };
 use console::Emoji;
-use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Duration;
 
 // Re-export style
 pub use console::style;
@@ -19,33 +17,6 @@ pub static SPINNER: Emoji<'_, '_> = Emoji("⏳ ", "~ ");
 pub static INFO: Emoji<'_, '_> = Emoji("ℹ️  ", "i ");
 pub static WARN: Emoji<'_, '_> = Emoji("⚠️  ", "!");
 pub static ROCKET: Emoji<'_, '_> = Emoji("🚀 ", "> ");
-
-/// Create a progress bar
-pub fn create_progress_bar(total: usize) -> ProgressBar {
-    let progress = ProgressBar::new(total as u64);
-    progress.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
-    );
-    progress.enable_steady_tick(Duration::from_millis(100));
-    progress
-}
-
-/// Format a step state for display
-pub fn format_step_state(state: &StepState) -> String {
-    match state {
-        StepState::Pending => style("PENDING").dim().to_string(),
-        StepState::Running { attempt, .. } => {
-            style(format!("RUNNING (attempt {})", attempt)).yellow().to_string()
-        }
-        StepState::Completed { .. } => style("COMPLETED").green().to_string(),
-        StepState::Failed { .. } => style("FAILED").red().to_string(),
-        StepState::Skipped { .. } => style("SKIPPED").dim().to_string(),
-        StepState::Blocked { .. } => style("BLOCKED").yellow().to_string(),
-    }
-}
 
 /// Format an execution status for display
 pub fn format_status(status: ExecutionStatus) -> String {

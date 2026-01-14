@@ -24,8 +24,12 @@ pub enum ExecutionStatus {
 /// State of a single step
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StepState {
-    /// Step is waiting for dependencies
+    /// Step is waiting for dependencies (first execution)
     Pending,
+    /// Step is waiting to be retried (preserves attempt count)
+    Retrying {
+        attempt: usize,
+    },
     /// Step is currently running
     Running {
         started_at: DateTime<Utc>,
@@ -63,19 +67,6 @@ impl StepState {
             self,
             StepState::Completed { .. } | StepState::Failed { .. } | StepState::Skipped { .. }
         )
-    }
-
-    /// Check if step can transition to running
-    pub fn can_start(&self) -> bool {
-        matches!(self, StepState::Pending)
-    }
-
-    /// Get the output if step is completed
-    pub fn get_output(&self) -> Option<&String> {
-        match self {
-            StepState::Completed { output, .. } => Some(output),
-            _ => None,
-        }
     }
 }
 
@@ -141,12 +132,6 @@ impl PipelineState {
         self.completed_at = Some(Utc::now());
     }
 
-    /// Mark pipeline as cancelled
-    pub fn cancel(&mut self) {
-        self.status = ExecutionStatus::Cancelled;
-        self.completed_at = Some(Utc::now());
-    }
-
     /// Update step counts based on current steps
     pub fn update_counts(&mut self, steps: &usize, completed: &usize, failed: &usize, running: &usize) {
         self.total_steps = *steps;
@@ -161,13 +146,6 @@ impl PipelineState {
             return 0.0;
         }
         (self.completed_steps + self.failed_steps) as f64 / self.total_steps as f64
-    }
-
-    /// Get duration of execution (if started)
-    pub fn duration(&self) -> Option<chrono::Duration> {
-        let start = self.started_at?;
-        let end = self.completed_at.unwrap_or_else(Utc::now);
-        Some(end - start)
     }
 }
 

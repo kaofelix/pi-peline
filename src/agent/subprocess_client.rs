@@ -9,7 +9,7 @@ use tracing::{debug, warn};
 /// Client for executing Pi CLI as a subprocess
 #[derive(Debug, Clone)]
 pub struct PiSubprocessClient {
-    /// Path to the pi executable
+    /// Path to pi executable
     pi_path: String,
 
     /// Timeout for command execution in seconds
@@ -20,7 +20,7 @@ impl PiSubprocessClient {
     /// Create a new subprocess client
     ///
     /// # Arguments
-    /// * `pi_path` - Path to the pi executable (e.g., "pi", "/usr/local/bin/pi")
+    /// * `pi_path` - Path to pi executable (e.g., "pi", "/usr/local/bin/pi")
     /// * `timeout_secs` - Timeout for command execution in seconds
     pub fn new(pi_path: String, timeout_secs: u64) -> Self {
         Self {
@@ -29,7 +29,8 @@ impl PiSubprocessClient {
         }
     }
 
-    /// Get the path to the pi executable
+    /// Get the pi executable path
+    #[cfg(test)]
     pub fn pi_path(&self) -> &str {
         &self.pi_path
     }

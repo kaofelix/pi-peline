@@ -1,8 +1,7 @@
 //! CLI command definitions
 
-use clap::{Args, Subcommand};
+use clap::Args;
 use crate::execution::SchedulingStrategy;
-use crate::persistence::ExecutionSummary;
 
 /// Run a pipeline
 #[derive(Debug, Args, Clone)]

@@ -1,10 +1,9 @@
 //! Step executor - runs individual steps with the agent
 
 use crate::{
-    agent::{AgentExecutor, AgentError},
-    core::{Step, StepState, PipelineContext},
+    agent::AgentExecutor,
+    core::{Step, PipelineContext},
 };
-use chrono::Utc;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, info, warn, error};
 
@@ -21,7 +20,12 @@ pub enum ExecutionResult {
         action: ContinueAction,
         target: Option<String>,
     },
-    /// Step failed
+    /// Step failed but should route to a failure handler
+    FailedWithRoute {
+        error: String,
+        next_step: String,
+    },
+    /// Step failed with no handler
     Failed {
         error: String,
     },
@@ -120,12 +124,12 @@ impl<A: AgentExecutor> StepExecutor<A> {
         );
         let next_step = step.next_step_on_failure().cloned();
 
-        // If there's an on_failure route, treat as "success" with routing
-        if next_step.is_some() {
-            info!("Step {} routing to failure handler: {:?}", step.id, next_step);
-            ExecutionResult::Success {
-                output: result.content,
-                next_step,
+        // If there's an on_failure route, route to failure handler
+        if let Some(target) = next_step {
+            info!("Step {} routing to failure handler: {}", step.id, target);
+            ExecutionResult::FailedWithRoute {
+                error: "No termination pattern found".to_string(),
+                next_step: target,
             }
         } else {
             error!("Step {} failed with no handler", step.id);
@@ -139,11 +143,10 @@ impl<A: AgentExecutor> StepExecutor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::{ContinuationConfig, TerminationConfig};
-    use crate::core::step::{Step, StepDefaults, ContinuationCondition};
+    use crate::core::step::{Step, ContinuationCondition};
     use crate::core::condition::TerminationCondition as DomainTerminationCondition;
+    use crate::core::state::StepState;
     use crate::agent::AgentResponse;
-    use std::collections::HashMap;
 
     // Mock agent executor for testing
     struct MockAgent {
@@ -161,8 +164,6 @@ mod tests {
     async fn test_step_success() {
         let step = Step {
             id: "test".to_string(),
-            name: "Test".to_string(),
-            description: None,
             prompt_template: "Do the task".to_string(),
             dependencies: vec![],
             termination: Some(DomainTerminationCondition {
@@ -173,7 +174,6 @@ mod tests {
             continuation: None,
             max_retries: 3,
             timeout_secs: 300,
-            allow_parallel: false,
             state: StepState::Pending,
         };
 
@@ -198,8 +198,6 @@ mod tests {
     async fn test_step_continuation_retry() {
         let step = Step {
             id: "test".to_string(),
-            name: "Test".to_string(),
-            description: None,
             prompt_template: "Do the task".to_string(),
             dependencies: vec![],
             termination: Some(DomainTerminationCondition {
@@ -211,11 +209,9 @@ mod tests {
                 pattern: crate::core::step::ConditionPattern::Simple("CONTINUE".to_string()),
                 action: crate::core::config::ContinuationAction::Retry,
                 target: None,
-                carry_notes: false,
             }),
             max_retries: 3,
             timeout_secs: 300,
-            allow_parallel: false,
             state: StepState::Pending,
         };
 

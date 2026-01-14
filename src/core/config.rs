@@ -1,6 +1,6 @@
 //! Pipeline configuration from YAML
 
-use crate::core::{Pipeline, Step};
+use crate::core::Pipeline;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use anyhow::Result;

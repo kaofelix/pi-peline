@@ -7,15 +7,14 @@ mod persistence;
 use cli::output::{INFO, style};
 
 use anyhow::{Context, Result};
-use clap::Parser;
 use cli::{Cli, Command};
 use cli::commands::{RunCommand, ValidateCommand, ListCommand, HistoryCommand, SchedulingStrategyArg};
 use cli::output::*;
 use execution::{ExecutionEngine, SchedulingStrategy, ExecutionEvent};
-use agent::{PiAgentClient, AgentClientConfig, AgentResponse, AgentError, AgentExecutor};
+use agent::{PiAgentClient, AgentClientConfig};
 use persistence::{SqliteExecutionStore, InMemoryPersistence, PersistenceBackend, create_summary, ExecutionSummary};
 use std::sync::Arc;
-use tracing::{info, error, Level};
+use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
@@ -212,8 +211,8 @@ async fn show_history(cmd: &HistoryCommand) -> Result<()> {
     let store = SqliteExecutionStore::with_default_path().await?;
 
     // If specific execution ID is requested
-    if let Some(ref exec_id_str) = cmd.execution_id {
-        let exec_id = uuid::Uuid::parse_str(&exec_id_str)
+    if let Some(exec_id_str) = &cmd.execution_id {
+        let exec_id = uuid::Uuid::parse_str(exec_id_str)
             .context("Invalid execution ID format")?;
         let summary = store.load_execution(exec_id).await?;
 
@@ -273,7 +272,7 @@ fn print_execution_details(summary: &ExecutionSummary, verbose: bool) -> Result<
             "  Completed: {}",
             style(completed.to_rfc3339()).dim()
         );
-        if let Some(duration) = completed.signed_duration_since(summary.started_at).to_std().ok() {
+        if let Ok(duration) = completed.signed_duration_since(summary.started_at).to_std() {
             println!("  Duration: {}", style(format_duration(duration)).dim());
         }
     }

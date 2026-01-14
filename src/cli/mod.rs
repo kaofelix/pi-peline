@@ -50,15 +50,4 @@ impl Cli {
     pub fn from_args() -> Self {
         Self::parse()
     }
-
-    /// Parse CLI arguments from a slice
-    pub fn try_parse_from<I, T>(itr: I) -> Result<Self, clap::Error>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<OsString> + Clone,
-    {
-        <Self as Parser>::try_parse_from(itr)
-    }
 }
-
-use std::ffi::OsString;
