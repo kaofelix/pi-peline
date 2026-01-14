@@ -318,14 +318,24 @@ cargo run -- run --file examples/pipeline.yaml
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                 Pi CLI Agent                          │
-│  (TODO: Implement actual Pi CLI integration)          │
+│              Pi Agent Client (Subprocess)               │
+│  - Spawns `pi --mode text --print --no-session`      │
+│  - Captures stdout as response                        │
+│  - Handles timeouts and errors                         │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                 Pi CLI (subprocess)                    │
+│  - Executes prompts                                   │
+│  - Uses tools (read, write, edit, bash)              │
+│  - Returns formatted response                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## Roadmap
 
-- [ ] Pi CLI agent integration
+- [x] Pi CLI agent integration
 - [ ] Support for other agents (Claude Code, etc.)
 - [ ] Streaming output support
 - [ ] Parallel step execution
@@ -334,6 +344,27 @@ cargo run -- run --file examples/pipeline.yaml
 - [ ] Pipeline templates
 - [ ] Context file support (read files from disk)
 - [ ] Environment-specific configurations
+
+## Configuration
+
+### Pi Binary Path
+
+pi-peline uses the `pi` CLI agent to execute prompts. By default, it assumes `pi` is on your PATH. To use a custom path:
+
+Set the `PI_BINARY_PATH` environment variable, or the `endpoint` field will be used for this in a future release.
+
+```bash
+# Use pi from a specific location
+export PATH="/custom/path:$PATH"
+
+# Or run with full path
+ln -s /path/to/pi /usr/local/bin/pi
+```
+
+### Requirements
+
+- `pi` CLI must be installed (see [pi-coding-agent](https://github.com/badlogic/pi-mono))
+- `pi` must be accessible on PATH or via `PI_BINARY_PATH`
 
 ## License
 

@@ -1,0 +1,33 @@
+name: "Simple Two-Step Pipeline"
+version: "1.0"
+
+variables:
+  task: "a simple REST API for user management"
+
+steps:
+  - id: "plan"
+    name: "Create Plan"
+    prompt: |
+      Create a brief implementation plan for {{ task }}.
+      The plan should include:
+      1. Main components
+      2. Key endpoints
+      3. Data model
+
+      End your response with exactly: ✅ PLAN COMPLETE
+    termination:
+      success_pattern: "✅ PLAN COMPLETE"
+      on_success: "implement"
+
+  - id: "implement"
+    name: "Implement"
+    depends_on: ["plan"]
+    prompt: |
+      Based on this plan:
+      {{ steps.plan.output }}
+
+      Write a simple Node.js/Express implementation.
+
+      End your response with exactly: ✅ IMPLEMENTATION_DONE
+    termination:
+      success_pattern: "✅ IMPLEMENTATION_DONE"

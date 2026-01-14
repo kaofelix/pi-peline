@@ -1,12 +1,14 @@
 //! Agent client configuration and implementation
 
-use crate::agent::{AgentError, AgentExecutor, AgentResponse, PiAgentClient};
-use async_trait::async_trait;
+use crate::agent::PiAgentClient;
 
 /// Configuration for the agent client
 #[derive(Debug, Clone)]
 pub struct AgentClientConfig {
-    /// API endpoint (if applicable)
+    /// Path to pi executable or API endpoint
+    ///
+    /// When using the subprocess client, this should be the path to the `pi` executable.
+    /// If not provided, defaults to "pi" (assumes it's on PATH).
     pub endpoint: Option<String>,
 
     /// API key (if applicable)
@@ -18,7 +20,7 @@ pub struct AgentClientConfig {
     /// Timeout for requests in seconds
     pub timeout_secs: u64,
 
-    /// Whether to enable streaming responses
+    /// Whether to enable streaming responses (not yet supported in subprocess mode)
     pub enable_streaming: bool,
 }
 
@@ -66,6 +68,16 @@ impl AgentClientConfig {
 }
 
 /// Create a default agent client
+///
+/// # Arguments
+/// * `config` - Agent client configuration
+///
+/// # Example
+/// ```ignore
+/// use pipeline::agent::{create_agent_client, AgentClientConfig};
+///
+/// let client = create_agent_client(AgentClientConfig::new());
+/// ```
 pub fn create_agent_client(config: AgentClientConfig) -> PiAgentClient {
     PiAgentClient::new(config)
 }

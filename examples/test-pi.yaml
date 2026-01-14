@@ -1,0 +1,10 @@
+name: "Pi Integration Test"
+version: "1.0"
+
+steps:
+  - id: "hello"
+    name: "Say Hello"
+    prompt: |
+      Say "Hello from Pi!" and include your name.
+    termination:
+      success_pattern: "Hello"
