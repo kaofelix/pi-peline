@@ -384,6 +384,8 @@ cargo run -- run --file examples/pipeline.yaml
 
 - [x] Pi CLI agent integration
 - [x] Context file support (read files from disk)
+- [ ] Human-in-the-loop checkpoints
+- [ ] Shell script quality gates
 - [ ] Web UI
 
 ## Configuration
