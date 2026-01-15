@@ -1,0 +1,40 @@
+name: "File Context Example Pipeline"
+version: "1.0"
+
+# Variables can be simple strings or file references with validation
+variables:
+  task: "Create a REST API"
+
+  # File reference with validation - file must exist
+  spec:
+    path: "README.md"
+    validate_exists: true
+
+  # Output file - doesn't need to exist yet
+  output_file:
+    path: "./output/api-spec.md"
+    validate_exists: false
+
+steps:
+  - id: "analyze"
+    name: "Analyze Requirements"
+    prompt: |
+      Analyze the project based on the README:
+      {{ spec }}
+
+      Task: {{ task }}
+
+      Create a plan and end with: ✅ ANALYSIS_DONE
+    termination:
+      success_pattern: "✅ ANALYSIS_DONE"
+      on_success: "implement"
+
+  - id: "implement"
+    name: "Implement Feature"
+    depends_on: ["analyze"]
+    prompt: |
+      Implement the feature. Output should be written to: {{ output_file }}
+
+      End your response with: ✅ IMPLEMENTATION_DONE
+    termination:
+      success_pattern: "✅ IMPLEMENTATION_DONE"

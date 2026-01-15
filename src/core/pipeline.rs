@@ -48,7 +48,7 @@ impl Pipeline {
 
         Pipeline {
             name: config.name.clone(),
-            variables: config.variables.clone(),
+            variables: config.variables_as_string_map(),
             steps,
             state: PipelineState::new(),
             execution_order,

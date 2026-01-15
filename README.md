@@ -19,9 +19,8 @@ You define a pipeline structure where each step executes a prompt through the Pi
 - **Termination promises** - The agent signals completion by printing a specific string
 - **Continuation promises** - The agent can request more work or route to different steps
 - **Review loops** - Implementation steps can route back for revision based on feedback
-- **Parallel execution** - Run independent steps concurrently
 - **Execution history** - All runs are persisted to SQLite
-- **Local execution** - Runs locally (distributed execution planned for future)
+- **Local execution** - Runs locally
 
 ## Use Cases
 
@@ -48,11 +47,19 @@ version: "1.0"
 variables:
   feature_name: "user authentication"
 
+  # File variable - validates README.md exists
+  readme:
+    path: "README.md"
+    validate_exists: true
+
 steps:
   - id: "planning"
     name: "Create Implementation Plan"
     prompt: |
       Create a detailed implementation plan for {{ feature_name }}.
+
+      Reference this README:
+      {{ readme }}
     termination:
       success_pattern: "✅ PLAN COMPLETE"
       on_success: "implementation"
@@ -201,6 +208,44 @@ pi-peline history --json
 
 * Required when action is "route"
 
+### Variables
+
+Variables can be defined in two formats:
+
+**Simple string variable:**
+```yaml
+variables:
+  feature_name: "user authentication"
+```
+
+**File variable with validation:**
+```yaml
+variables:
+  readme:
+    path: "README.md"
+    validate_exists: true  # Optional, defaults to false
+```
+
+When a file variable is used in a prompt, it is expanded as `@path` so the Pi CLI agent can read the file directly:
+
+```yaml
+steps:
+  - id: "analyze"
+    prompt: |
+      Analyze this README:
+      {{ readme }}
+    # Expands to: "Analyze this README: @README.md"
+```
+
+**File variable fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Path to the file |
+| `validate_exists` | boolean | No | If true, validation fails if file doesn't exist (default: false) |
+
+Use `validate_exists: true` for input files that must exist, and `validate_exists: false` for output files or optional files.
+
 ## How It Works
 
 1. **Pipeline Loading**: The YAML file is parsed and validated
@@ -338,14 +383,8 @@ cargo run -- run --file examples/pipeline.yaml
 ## Roadmap
 
 - [x] Pi CLI agent integration
-- [ ] Support for other agents (Claude Code, etc.)
-- [ ] Streaming output support
-- [ ] Parallel step execution
-- [ ] Distributed execution
+- [x] Context file support (read files from disk)
 - [ ] Web UI
-- [ ] Pipeline templates
-- [ ] Context file support (read files from disk)
-- [ ] Environment-specific configurations
 
 ## Configuration
 

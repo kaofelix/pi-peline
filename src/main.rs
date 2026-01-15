@@ -146,7 +146,7 @@ fn validate_pipeline(cmd: &ValidateCommand) -> Result<()> {
             println!("{} Pipeline configuration is valid!", CHECK);
             println!("  Name: {}", style(&config.name).bold());
             println!("  Steps: {}", style(config.steps.len()).cyan());
-            println!("  Variables: {}", style(config.variables.len()).cyan());
+            println!("  Variables: {}", style(config.variables_as_string_map().len()).cyan());
 
             if cmd.json {
                 let json = serde_json::to_string_pretty(&config)?;
