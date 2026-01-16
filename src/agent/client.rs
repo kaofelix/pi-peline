@@ -17,7 +17,7 @@ impl Default for AgentClientConfig {
     fn default() -> Self {
         Self {
             endpoint: None,
-            timeout_secs: 300,
+            timeout_secs: 10800,
         }
     }
 }

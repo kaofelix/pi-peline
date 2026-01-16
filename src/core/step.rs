@@ -224,7 +224,7 @@ impl Default for StepDefaults {
     fn default() -> Self {
         Self {
             max_retries: 3,
-            timeout_secs: 300, // 5 minutes
+            timeout_secs: 10800, // 3 hours
         }
     }
 }

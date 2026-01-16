@@ -32,7 +32,7 @@ impl Pipeline {
     pub fn from_config(config: &PipelineConfig) -> Self {
         let defaults = StepDefaults {
             max_retries: config.max_retries.unwrap_or(3),
-            timeout_secs: config.default_timeout_secs.unwrap_or(300),
+            timeout_secs: config.default_timeout_secs.unwrap_or(10800),
         };
 
         let steps: HashMap<String, Step> = config

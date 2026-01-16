@@ -37,7 +37,7 @@ impl PiSubprocessClient {
 
     /// Execute a prompt through pi CLI subprocess
     ///
-    /// Calls `pi --mode text --print --no-session <prompt>` and captures stdout.
+    /// Calls `pi --mode text --print <prompt>` and captures stdout.
     ///
     /// # Arguments
     /// * `prompt` - The prompt to send to pi
@@ -60,7 +60,7 @@ impl PiSubprocessClient {
         let result = timeout(
             timeout_duration,
             Command::new(&self.pi_path)
-                .args(["--mode", "text", "--print", "--no-session"])
+                .args(["--mode", "text", "--print"])
                 .arg(prompt)
                 .kill_on_drop(true)
                 .output(),
