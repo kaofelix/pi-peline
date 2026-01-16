@@ -79,6 +79,34 @@ steps:
       End with: ✅ REVIEW_COMPLETE
     termination:
       success_pattern: "✅ REVIEW_COMPLETE"
+      on_success: "smoke_test"
+    continuation:
+      pattern: "🔄 CONTINUE"
+      action: "retry"
+
+  - id: "smoke_test"
+    name: "Smoke Test"
+    depends_on: ["review"]
+    prompt: |
+      Run smoke tests to verify the implementation works correctly and has no regressions.
+
+      Execute the following:
+      1. Run: cargo test --lib
+      2. Verify all tests pass
+      3. Check for any warnings or errors in the output
+
+      Things to verify:
+      - All tests pass (currently ~76 tests)
+      - No compilation errors
+      - No test failures
+
+      Note: There's a known issue with tests/smoke_test.rs being outdated. For now, we rely on lib tests for regression testing. You can optionally fix the smoke tests in tests/smoke_test.rs as a bonus task.
+
+      If tests fail or there are issues, describe what's wrong and end with: 🔄 CONTINUE
+
+      If everything looks good, end with: ✅ SMOKE_TEST_PASSED
+    termination:
+      success_pattern: "✅ SMOKE_TEST_PASSED"
     continuation:
       pattern: "🔄 CONTINUE"
       action: "retry"

@@ -366,7 +366,7 @@ cargo run -- run --file examples/pipeline.yaml
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Pi Agent Client (Subprocess)               │
-│  - Spawns `pi --mode text --print --no-session`      │
+│  - Spawns `pi --mode text --print`                   │
 │  - Captures stdout as response                        │
 │  - Handles timeouts and errors                         │
 └────────────────────┬────────────────────────────────────┘

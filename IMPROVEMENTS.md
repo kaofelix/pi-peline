@@ -4,40 +4,6 @@ Track technical debt, bugs, and future improvements for the pi-peline project.
 
 ---
 
-## Bugs Fixed
-
-### Session Files Not Being Created (Phase 2 Regression)
-
-**Issue:** Phase 2 brought back the streaming code with `--no-session` flag, preventing session files from being created.
-
-**Root Cause:** The streaming method in `subprocess_client.rs` still had `--no-session` from the original implementation.
-
-**Fix:** Removed `--no-session` from the streaming args in `src/agent/subprocess_client.rs`.
-
-**Date Fixed:** 2026-01-16
-
----
-
-### JSON Parsing Failures for Tool Execution Events
-
-**Issue:** Warnings when parsing tool execution events due to field name mismatch:
-```
-WARN pipeline::agent::subprocess_client: Failed to parse JSON line: missing field `tool_call_id`
-```
-
-**Root Cause:** Pi outputs field names in camelCase (`toolCallId`, `isError`, `exitCode`) but the schema expected snake_case. Also, tool execution events have extra fields (`toolName`, `args`, `result`, `partialResult`) that weren't captured.
-
-**Fix:**
-1. Added `#[serde(alias = "toolCallId")]`, `#[serde(alias = "isError")]` to accept both camelCase and snake_case
-2. Added optional fields for tool execution events: `tool_name`, `args`, `result`, `partial_result`
-3. Updated tests to use camelCase field names
-
-**Files Modified:** `src/agent/pi_events.rs`
-
-**Date Fixed:** 2026-01-16
-
----
-
 ## Architecture & Code Quality
 
 ### Redundant Timeout Configuration
@@ -74,6 +40,27 @@ WARN pipeline::agent::subprocess_client: Failed to parse JSON line: missing fiel
 
 ---
 
+## Broken Tests
+
+### Smoke Tests Outdated
+
+**Issue:** Smoke tests in `tests/smoke_test.rs` fail with "No termination pattern found"
+
+**Root Cause:** The tests use `PiAgentClient.execute()` which calls the non-streaming `subprocess_client.execute()` (text mode), not the streaming JSON mode. The termination patterns aren't found because the output is in text mode, not parsed JSON.
+
+**Status:** Tests need to be updated to use streaming mode or use MockAgent instead.
+
+**Priority:** Medium (smoke tests useful for catching regressions)
+
+**Proposed Fix:**
+1. Update tests to use MockAgent (which doesn't require Pi CLI)
+2. Or create a streaming-aware test runner
+3. For now, rely on lib tests for smoke testing
+
+**Date Identified:** 2026-01-16
+
+---
+
 ## CLI & User Experience
 
 ### Binary Name Inconsistency
@@ -96,8 +83,6 @@ path = "src/main.rs"
 **Priority:** Low (cosmetic, causes confusion)
 
 ---
-
-
 
 ### Better Error Messages for Missing Database Directory
 

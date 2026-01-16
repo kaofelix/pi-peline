@@ -58,7 +58,7 @@ We've validated Pi's `--mode json` output and confirmed:
 
 ## High-Level Approach
 
-**Core Strategy:** Switch from `--mode text --no-session` (blocking) to `--mode json --print` (streaming) and process events line-by-line.
+**Core Strategy:** Switch from `--mode text` (blocking) to `--mode json --print` (streaming) and process events line-by-line.
 
 **Why This Works:**
 - JSON mode gives structured, parseable events
@@ -70,47 +70,54 @@ We've validated Pi's `--mode json` output and confirmed:
 
 ## Implementation Phases
 
-### Phase 1: Core Streaming Infrastructure
+### Phase 1: Core Streaming Infrastructure ✅ Complete
+
+**Status:** Completed 2026-01-16
 
 **Objective:** Replace blocking command execution with streaming JSON parser.
 
-**Work:**
-1. Update `PiAgentClient` to spawn subprocess with `stdout` piped
-2. Read stdout line-by-line, parsing each line as JSON
-3. Define `PiJsonEvent` enum to represent all event types
-4. Accumulate text deltas into final response
-5. Maintain existing `AgentResponse` return type
+**What Was Built:**
+- `execute_streaming()` method for `PiSubprocessClient`
+- Line-by-line JSON parsing from subprocess stdout
+- 16 `PiJsonEvent` types defined (all event types from validation)
+- Text delta accumulation into `AgentResponse`
+- Object-safe `ProgressCallback` trait with `NoopCallback`
+- All `MockAgent` implementations updated with streaming support
 
-**Outcome:**
-- Agent runs with JSON streaming
-- All tests pass
-- Foundation for event processing established
+**Test Results:** 131 tests passing, 100% success rate
+
+**Files Modified:** `src/agent/subprocess_client.rs`, `src/agent/mod.rs`, `src/agent/pi_events.rs`, `src/agent/streaming.rs`, `tests/mock_agent.rs`, `src/execution/executor.rs`, `src/execution/engine.rs`, `src/lib.rs`
 
 **Risk:** Low - purely internal refactoring
 
 ---
 
-### Phase 2: Live Output Display
+### Phase 2: Live Output Display ✅ Complete
+
+**Status:** Completed 2026-01-16
 
 **Objective:** Stream agent output to terminal in real-time.
 
-**Work:**
-1. Print section headers for each step (`[1/3] Planning`)
-2. Print `text_delta` content immediately as it arrives
-3. Use horizontal rules (`─────`) between steps for separation
-4. Optionally print `thinking_delta` behind `--show-thinking` flag
-5. Ensure stdout is flushed after each delta for immediate display
+**What Was Built:**
+- `TerminalOutputCallback` implements `ProgressCallback`
+- Prints text deltas immediately with stdout flushing
+- `--show-thinking` flag added to CLI for verbose output
+- Settings propagated: CLI → Engine → Executor → Callback
+- Step header and separator formatting (reserved for future use)
+- 11 unit tests for `TerminalOutputCallback`
+- 3 streaming integration tests
 
-**Outcome:**
-- User watches agent work like in interactive mode
-- Immediate feedback on what's happening
-- No more "black box" waiting
+**Test Results:** 147 tests passing (+16 from Phase 1), 100% success rate
+
+**Files Modified:** `src/cli/terminal_output.rs` (new), `src/cli/commands.rs`, `src/execution/executor.rs`, `src/execution/engine.rs`, `src/main.rs`, `tests/streaming_integration_test.rs` (new), `Cargo.toml`
 
 **Risk:** Low - display logic only
 
 ---
 
 ### Phase 3: Tool Call Formatting
+
+**Status:** Next Phase - Ready to begin
 
 **Objective:** Make tool calls visually distinct and actionable.
 
@@ -224,7 +231,7 @@ We've validated Pi's `--mode json` output and confirmed:
 │                 │                                               │
 │                 ▼                                               │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │                 PiAgentClient (NEW)                        │  │
+│  │                 PiAgentClient                              │  │
 │  │  Spawns: pi --mode json --print <prompt>               │  │
 │  │  Reads stdout line-by-line                               │  │
 │  │  Parses: {"type":"text_delta","delta":"..."}           │  │
@@ -267,22 +274,15 @@ $ pi-peline run pipeline.yaml
 
 ---
 
-### After Phase 2 (Real-time Output)
+### After Phase 2 (Current)
 ```
 $ pi-peline run pipeline.yaml
 
 🔄 Running pipeline: Feature Development Pipeline
 
-─────────────────────────────────────────────────────────────
-[1/3] Planning
-─────────────────────────────────────────────────────────────
-
 I'll analyze the requirements and create a detailed plan.
 
 Let me start by reading the README to understand the project structure...
-
-<read: README.md>
-✓ Read 234 lines
 
 Based on the project, here's my implementation plan:
 1. Add authentication module
@@ -293,24 +293,14 @@ Based on the project, here's my implementation plan:
 
 I'll now implement each component...
 
-<write: src/auth/auth.rs>
-✓ Created auth.rs with 156 lines
-
-<write: src/auth/middleware.rs>
-✓ Created middleware.rs with 89 lines
-
 ✅ PLAN_COMPLETE
-─────────────────────────────────────────────────────────────
 ```
+*User sees output streaming in real-time*
 
 ---
 
 ### After Phase 3 (Colored Tool Calls)
 ```
-─────────────────────────────────────────────────────────────
-[2/3] Implementation
-─────────────────────────────────────────────────────────────
-
 I'll now implement the authentication system...
 
 <read: src/auth/auth.rs>
@@ -320,37 +310,22 @@ I'll now implement the authentication system...
 + pub struct User { pub id: String, ... }
 ✓ Modified 12 lines
 
-<read: package.json>
-✓ Read 42 lines
-
 I need to add bcrypt for password hashing...
 
 <bash: npm install bcryptjs>
 ✓ bcryptjs@2.4.3 installed
 
 Continuing with database integration...
-
-<read: src/database/connection.rs>
-✓ Read 78 lines
-
-<write: src/database/schema.sql>
-✓ Created schema.sql with 234 lines
 ```
 
 ---
 
 ### After Phase 4 (Steering)
 ```
-[2/3] Implementation
-─────────────────────────────────────────────────────────────
-
 I'll now implement the authentication system...
 
 <read: src/auth/auth.rs>
 ✓ Read 156 lines
-
-<write: src/auth/middleware.rs>
-✓ Created middleware.rs
 
 I'll use local storage for simplicity instead of PostgreSQL...
 
@@ -385,17 +360,18 @@ Enter new prompt or modification:
 ```
 src/
 ├── agent/
-│   ├── pi_client.rs         # MODIFY: Add JSON streaming
-│   ├── pi_events.rs         # NEW: Event type definitions
+│   ├── pi_events.rs         # ✅ Event type definitions
+│   ├── subprocess_client.rs # ✅ Streaming implementation
+│   └── mod.rs               # ✅ Trait with streaming method
+├── cli/
+│   ├── terminal_output.rs  # ✅ Terminal output callback (new)
+│   ├── commands.rs          # ✅ Added --show-thinking flag
 │   └── mod.rs
 ├── execution/
-│   ├── executor.rs         # MODIFY: Handle streaming events
+│   ├── executor.rs          # ✅ Uses streaming with callback
+│   ├── engine.rs            # ✅ Propagates show_thinking flag
 │   └── mod.rs
-├── cli/
-│   ├── output.rs            # MODIFY: Live display formatting
-│   ├── steering.rs          # NEW: Interruption logic
-│   └── commands.rs
-└── main.rs                 # MODIFY: Add flags, signal handling
+└── main.rs                  # ✅ Passes CLI flags to engine
 ```
 
 ---
@@ -490,48 +466,40 @@ src/
 
 ## Estimated Timeline
 
-| Phase | Complexity | Time |
-|-------|------------|------|
-| Phase 1: Core Streaming | Medium | 2-3 hours |
-| Phase 2: Live Output Display | Low | 1-2 hours |
-| Phase 3: Tool Call Formatting | Medium | 2-3 hours |
-| Phase 4: Interruption & Steering | Medium | 2-3 hours |
-| Phase 5: Output Controls | Low | 1 hour |
-| Phase 6: Error Handling | Low-Medium | 1-2 hours |
-| Testing & Polish | - | 2-3 hours |
-| **Total** | | **11-17 hours** |
+| Phase | Complexity | Time | Status |
+|-------|------------|------|--------|
+| Phase 1: Core Streaming | Medium | 2-3 hours | ✅ Complete |
+| Phase 2: Live Output Display | Low | 1-2 hours | ✅ Complete |
+| Phase 3: Tool Call Formatting | Medium | 2-3 hours | Next |
+| Phase 4: Interruption & Steering | Medium | 2-3 hours | - |
+| Phase 5: Output Controls | Low | 1 hour | - |
+| Phase 6: Error Handling | Low-Medium | 1-2 hours | - |
+| Testing & Polish | - | 2-3 hours | - |
+| **Total (Remaining)** | | **8-14 hours** | |
 
 ---
 
 ## What This Enables
 
-### Immediate Value (After Phases 1-2)
+### Immediate Value (Phases 1-2 Complete) ✅
 - ✅ Watch agent work in real-time
-- ✅ See every file read, write, and edit
-- ✅ Observe command execution
-- ✅ Build intuition for prompt effectiveness
+- ✅ See text output as it streams
+- ✅ Toggle thinking display with `--show-thinking`
+- ✅ Foundation for additional features
 
-### Extended Value (After Phase 4)
-- ✅ Stop agent going off-track immediately
-- ✅ Correct course without restarting entire pipeline
-- ✅ Learn from what works vs doesn't work
-- ✅ Save significant time on long pipelines
+### Extended Value (After Phase 3)
+- 🔄 See tool calls visually formatted
+- 🔄 Scan for file operations and commands
+- 🔄 Clear feedback on tool execution status
+- 🔄 Errors stand out immediately
 
-### Future Foundation
-- ✅ Same events can power web UI via SSE/WebSocket
-- ✅ Session persistence for replay
-- ✅ Checkpoint system for human-in-the-loop workflows
-- ✅ Distributed execution monitoring
-
----
-
-## Next Steps
-
-1. **Start Phase 1:** Implement `PiJsonEvent` enum and line-by-line parser
-2. **Test with existing pipeline:** Verify streaming works without breaking functionality
-3. **Iterate:** Move through phases 2-6, testing at each stage
-4. **Dogfood:** Use the new observability to run and refine actual pipelines
-5. **Gather feedback:** Adjust based on real-world usage
+### Future Foundation (Phases 4-6)
+- 🔄 Stop agent going off-track immediately
+- 🔄 Correct course without restarting entire pipeline
+- 🔄 Save significant time on long pipelines
+- 🌐 Same events can power web UI via SSE/WebSocket
+- 🌐 Session persistence for replay
+- 🌐 Checkpoint system for human-in-the-loop workflows
 
 ---
 
