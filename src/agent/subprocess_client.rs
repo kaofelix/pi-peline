@@ -39,7 +39,7 @@ impl PiSubprocessClient {
 
     /// Execute a prompt through pi CLI subprocess with streaming events
     ///
-    /// Calls `pi --mode json --print --no-session <prompt>` and reads JSON events line-by-line.
+    /// Calls `pi --mode json --print <prompt>` and reads JSON events line-by-line.
     ///
     /// # Streaming Behavior
     /// - Subprocess spawns with JSON mode for event-based streaming
@@ -96,7 +96,7 @@ impl PiSubprocessClient {
 
         // Spawn pi in JSON mode with streaming
         let mut child = Command::new(&self.pi_path)
-            .args(["--mode", "json", "--print", "--no-session"])
+            .args(["--mode", "json", "--print"])
             .arg(prompt)
             .stdout(std::process::Stdio::piped())
             .kill_on_drop(true)

@@ -3,7 +3,7 @@ version: "1.0"
 
 variables:
   observability_plan: "./OBSERVABILITY_PLAN.md"
-  phase_number: "2"
+  phase_number: "3"
   state_file: "./.observability-state.md"
 
 steps:

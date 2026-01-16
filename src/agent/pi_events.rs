@@ -52,33 +52,65 @@ pub enum PiJsonEvent {
 
     /// Tool call started
     #[serde(rename = "toolcall_start")]
-    ToolCallStart { tool_call_id: String, name: String },
+    ToolCallStart {
+        #[serde(alias = "toolCallId")]
+        tool_call_id: String,
+        #[serde(alias = "toolName")]
+        name: String,
+    },
 
     /// Tool call delta (arguments streaming)
     #[serde(rename = "toolcall_delta")]
-    ToolCallDelta { tool_call_id: String, delta: String },
+    ToolCallDelta {
+        #[serde(alias = "toolCallId")]
+        tool_call_id: String,
+        delta: String,
+    },
 
     /// Tool call ended
     #[serde(rename = "toolcall_end")]
-    ToolCallEnd { tool_call_id: String },
+    ToolCallEnd {
+        #[serde(alias = "toolCallId")]
+        tool_call_id: String,
+    },
 
     /// Tool execution started
     #[serde(rename = "tool_execution_start")]
-    ToolExecutionStart { tool_call_id: String },
+    ToolExecutionStart {
+        #[serde(alias = "toolCallId")]
+        tool_call_id: String,
+        #[serde(default)]
+        tool_name: Option<String>,
+        #[serde(default)]
+        args: Option<serde_json::Value>,
+    },
 
     /// Tool execution update (output streaming)
     #[serde(rename = "tool_execution_update")]
-    ToolExecutionUpdate { tool_call_id: String, output: String },
+    ToolExecutionUpdate {
+        #[serde(alias = "toolCallId")]
+        tool_call_id: String,
+        #[serde(default)]
+        tool_name: Option<String>,
+        #[serde(default)]
+        args: Option<serde_json::Value>,
+        #[serde(default)]
+        partial_result: Option<serde_json::Value>,
+    },
 
     /// Tool execution ended
     #[serde(rename = "tool_execution_end")]
     ToolExecutionEnd {
+        #[serde(alias = "toolCallId")]
         tool_call_id: String,
         #[serde(default)]
-        is_error: bool,
-        output: Option<String>,
+        tool_name: Option<String>,
         #[serde(default)]
-        exit_code: Option<i32>,
+        args: Option<serde_json::Value>,
+        #[serde(default)]
+        result: Option<serde_json::Value>,
+        #[serde(alias = "isError", default)]
+        is_error: bool,
     },
 }
 
@@ -215,44 +247,50 @@ mod tests {
 
     #[test]
     fn test_parse_tool_execution_start() {
-        let json = r#"{"type":"tool_execution_start","tool_call_id":"123"}"#;
+        let json = r#"{"type":"tool_execution_start","toolCallId":"123"}"#;
         let event: PiJsonEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event, PiJsonEvent::ToolExecutionStart {
-            tool_call_id: "123".to_string()
+            tool_call_id: "123".to_string(),
+            tool_name: None,
+            args: None,
         });
     }
 
     #[test]
     fn test_parse_tool_execution_update() {
-        let json = r#"{"type":"tool_execution_update","tool_call_id":"123","output":"progress"}"#;
+        let json = r#"{"type":"tool_execution_update","toolCallId":"123"}"#;
         let event: PiJsonEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event, PiJsonEvent::ToolExecutionUpdate {
             tool_call_id: "123".to_string(),
-            output: "progress".to_string()
+            tool_name: None,
+            args: None,
+            partial_result: None,
         });
     }
 
     #[test]
     fn test_parse_tool_execution_end() {
-        let json = r#"{"type":"tool_execution_end","tool_call_id":"123","is_error":false,"output":"result","exit_code":0}"#;
+        let json = r#"{"type":"tool_execution_end","toolCallId":"123","isError":false}"#;
         let event: PiJsonEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event, PiJsonEvent::ToolExecutionEnd {
             tool_call_id: "123".to_string(),
+            tool_name: None,
+            args: None,
+            result: None,
             is_error: false,
-            output: Some("result".to_string()),
-            exit_code: Some(0)
         });
     }
 
     #[test]
     fn test_parse_tool_execution_end_minimal() {
-        let json = r#"{"type":"tool_execution_end","tool_call_id":"123"}"#;
+        let json = r#"{"type":"tool_execution_end","toolCallId":"123"}"#;
         let event: PiJsonEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event, PiJsonEvent::ToolExecutionEnd {
             tool_call_id: "123".to_string(),
+            tool_name: None,
+            args: None,
+            result: None,
             is_error: false,
-            output: None,
-            exit_code: None
         });
     }
 

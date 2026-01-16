@@ -4,6 +4,40 @@ Track technical debt, bugs, and future improvements for the pi-peline project.
 
 ---
 
+## Bugs Fixed
+
+### Session Files Not Being Created (Phase 2 Regression)
+
+**Issue:** Phase 2 brought back the streaming code with `--no-session` flag, preventing session files from being created.
+
+**Root Cause:** The streaming method in `subprocess_client.rs` still had `--no-session` from the original implementation.
+
+**Fix:** Removed `--no-session` from the streaming args in `src/agent/subprocess_client.rs`.
+
+**Date Fixed:** 2026-01-16
+
+---
+
+### JSON Parsing Failures for Tool Execution Events
+
+**Issue:** Warnings when parsing tool execution events due to field name mismatch:
+```
+WARN pipeline::agent::subprocess_client: Failed to parse JSON line: missing field `tool_call_id`
+```
+
+**Root Cause:** Pi outputs field names in camelCase (`toolCallId`, `isError`, `exitCode`) but the schema expected snake_case. Also, tool execution events have extra fields (`toolName`, `args`, `result`, `partialResult`) that weren't captured.
+
+**Fix:**
+1. Added `#[serde(alias = "toolCallId")]`, `#[serde(alias = "isError")]` to accept both camelCase and snake_case
+2. Added optional fields for tool execution events: `tool_name`, `args`, `result`, `partial_result`
+3. Updated tests to use camelCase field names
+
+**Files Modified:** `src/agent/pi_events.rs`
+
+**Date Fixed:** 2026-01-16
+
+---
+
 ## Architecture & Code Quality
 
 ### Redundant Timeout Configuration
