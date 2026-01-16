@@ -1,6 +1,7 @@
 //! Main execution engine - orchestrates the entire pipeline run
 
 use crate::{
+    cli::terminal_output::TerminalOutputCallback,
     core::{Pipeline, StepState, ExecutionStatus},
     execution::{StepExecutor, ExecutionResult, ContinueAction, ExecutionScheduler, SchedulingStrategy},
     agent::AgentExecutor,
@@ -60,12 +61,14 @@ pub struct ExecutionEngine<A> {
     scheduler: Arc<Mutex<ExecutionScheduler>>,
     executor: Arc<StepExecutor<A>>,
     event_handlers: Arc<Mutex<Vec<EventHandler>>>,
+    show_thinking: bool,
 }
 
 impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
     pub fn new(
         agent: A,
         strategy: SchedulingStrategy,
+        show_thinking: bool,
     ) -> Self {
         let executor = Arc::new(StepExecutor::new(agent));
         let scheduler = Arc::new(Mutex::new(ExecutionScheduler::new(strategy)));
@@ -74,6 +77,7 @@ impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
             scheduler,
             executor,
             event_handlers: Arc::new(Mutex::new(Vec::new())),
+            show_thinking,
         }
     }
 
@@ -285,7 +289,12 @@ impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
 
         // Create context and execute
         let context = pipeline.create_context_for_step(step_id);
-        let result = self.executor.execute(&step, &context).await;
+
+        // Create terminal output callback for live display
+        let total_steps = pipeline.steps.len();
+        let callback = TerminalOutputCallback::new(self.show_thinking, total_steps);
+
+        let result = self.executor.execute(&step, &context, Some(&callback)).await;
 
         match result {
             ExecutionResult::Success { output, next_step } => {
@@ -610,7 +619,7 @@ steps:
         let mut pipeline = config.to_pipeline();
 
         let agent = MockAgent::new(vec!["DONE".to_string(), "DONE".to_string()]);
-        let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential);
+        let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential, false);
 
         let result = engine.execute(&mut pipeline).await;
         assert!(result.is_ok());

@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod output;
+pub mod terminal_output;
 
 use clap::{Parser, Subcommand};
 use commands::{RunCommand, ValidateCommand, ListCommand, HistoryCommand};

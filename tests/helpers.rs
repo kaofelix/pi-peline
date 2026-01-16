@@ -107,7 +107,7 @@ pub async fn run_pipeline_with_agent<A: AgentExecutor + Send + Sync + 'static>(
     agent: A,
 ) -> Result<PipelineTestResult, String> {
     let start = std::time::Instant::now();
-    let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential);
+    let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential, false);
     engine.execute(pipeline).await?;
     let duration = start.elapsed();
 

@@ -83,8 +83,8 @@ async fn run_pipeline(cmd: &RunCommand, cli: Cli) -> Result<()> {
         SchedulingStrategyArg::ParallelLimited => SchedulingStrategy::LimitedParallel(4),
     };
 
-    // Create execution engine
-    let engine = ExecutionEngine::new(agent, strategy);
+    // Create execution engine with show_thinking flag
+    let engine = ExecutionEngine::new(agent, strategy, cmd.show_thinking);
 
     // Set up event handler for console output
     let stream = cli.stream;

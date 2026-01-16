@@ -1,7 +1,7 @@
 //! Step executor - runs individual steps with the agent
 
 use crate::{
-    agent::AgentExecutor,
+    agent::{AgentExecutor, ProgressCallback},
     core::{Step, PipelineContext},
 };
 use tokio::time::{timeout, Duration};
@@ -55,16 +55,19 @@ impl<A: AgentExecutor> StepExecutor<A> {
         &self,
         step: &Step,
         context: &PipelineContext,
+        callback: Option<&dyn ProgressCallback>,
     ) -> ExecutionResult {
         info!("Executing step: {}", step.id);
 
         let effective_prompt = step.build_effective_prompt(&context.get_rendering_variables());
         debug!("Effective prompt for step {}: {}", step.id, effective_prompt);
 
-        // Execute with timeout
-        // TODO: Phase 2 - Switch to execute_streaming with progress callbacks for live output display
+        // Execute with streaming for live output display
         let timeout_duration = Duration::from_secs(step.timeout_secs);
-        let result = match timeout(timeout_duration, self.agent.execute(&effective_prompt)).await {
+        let result = match timeout(
+            timeout_duration,
+            self.agent.execute_streaming(&effective_prompt, callback)
+        ).await {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
                 error!("Agent error for step {}: {}", step.id, e);
@@ -193,7 +196,7 @@ mod tests {
         let executor = StepExecutor::new(agent);
         let context = PipelineContext::new();
 
-        let result = executor.execute(&step, &context).await;
+        let result = executor.execute(&step, &context, None).await;
 
         match result {
             ExecutionResult::Success { output, next_step } => {
@@ -231,7 +234,7 @@ mod tests {
         let executor = StepExecutor::new(agent);
         let context = PipelineContext::new();
 
-        let result = executor.execute(&step, &context).await;
+        let result = executor.execute(&step, &context, None).await;
 
         match result {
             ExecutionResult::Continue { action, target } => {

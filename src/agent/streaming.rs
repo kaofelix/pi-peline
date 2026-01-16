@@ -81,7 +81,10 @@ pub trait ProgressCallback: Send + Sync {
 }
 
 /// No-op callback that does nothing (for backward compatibility)
+///
+/// **Note:** RESERVED FOR TEST USAGE - Useful for tests that need a valid callback
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct NoopCallback;
 
 impl ProgressCallback for NoopCallback {
@@ -91,6 +94,9 @@ impl ProgressCallback for NoopCallback {
 }
 
 /// Boxed callback for dynamic dispatch
+///
+/// **Note:** RESERVED FOR FUTURE USE - May be useful for callback chaining or async callbacks
+#[allow(dead_code)]
 pub type BoxedCallback = Box<dyn ProgressCallback>;
 
 #[cfg(test)]

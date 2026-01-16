@@ -25,6 +25,10 @@ pub struct RunCommand {
     /// Specific step to start from (for debugging/resuming)
     #[arg(long)]
     pub from_step: Option<String>,
+
+    /// Show agent thinking (reasoning output)
+    #[arg(long)]
+    pub show_thinking: bool,
 }
 
 /// Validate a pipeline configuration

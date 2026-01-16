@@ -3,7 +3,7 @@ version: "1.0"
 
 variables:
   observability_plan: "./OBSERVABILITY_PLAN.md"
-  phase_number: "1"
+  phase_number: "2"
   state_file: "./.observability-state.md"
 
 steps:
@@ -70,7 +70,12 @@ steps:
 
       Apply improvements if needed.
 
-      If you have more work to do in the next turn, end with: 🔄 CONTINUE      
+      If you have more work to do in the next turn, end with: 🔄 CONTINUE
+
+      If the review is complete and there's nothing else to do, commit all changes:
+        git add -A
+        git commit -m "[write a clear commit message describing what was implemented]"
+
       End with: ✅ REVIEW_COMPLETE
     termination:
       success_pattern: "✅ REVIEW_COMPLETE"

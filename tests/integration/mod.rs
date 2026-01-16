@@ -21,7 +21,7 @@ async fn run_pipeline_with_real_pi(yaml: &str) -> Result<IntegrationTestResult, 
     let pi_client = PiAgentClient::new(pipeline::agent::AgentClientConfig::default());
 
     let start = std::time::Instant::now();
-    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential);
+    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential, false);
     engine.execute(&mut pipeline).await?;
     let duration = start.elapsed();
 
@@ -153,7 +153,7 @@ steps:
     let pi_client = PiAgentClient::new(pipeline::agent::AgentClientConfig::default());
 
     let start = std::time::Instant::now();
-    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential);
+    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential, false);
     let result = tokio::time::timeout(Duration::from_secs(60), engine.execute(&mut pipeline)).await;
     let elapsed = start.elapsed();
 
@@ -193,7 +193,7 @@ steps:
     let mut pipeline = config.to_pipeline();
 
     let pi_client = PiAgentClient::new(pipeline::agent::AgentClientConfig::default());
-    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential);
+    let engine = ExecutionEngine::new(pi_client, SchedulingStrategy::Sequential, false);
 
     let _ = engine.execute(&mut pipeline).await;
 
