@@ -4,8 +4,10 @@
 //! with the execution engine.
 
 use pipeline::agent::{AgentExecutor, AgentResponse, AgentError, ProgressCallback, PiJsonEvent};
+use pipeline::agent::pi_events::{AssistantMessageEvent, Message};
 use pipeline::core::config::PipelineConfig;
 use pipeline::execution::{ExecutionEngine, SchedulingStrategy};
+use serde_json::json;
 
 // Mock agent that generates test events
 struct TestCallback {
@@ -77,14 +79,22 @@ impl AgentExecutor for TestAgent {
             // Generate some TextDelta events
             for response in &self.responses {
                 for chunk in response.split_whitespace() {
-                    cb.on_event(&PiJsonEvent::TextDelta {
-                        delta: format!("{} ", chunk),
+                    cb.on_event(&PiJsonEvent::MessageUpdate {
+                        assistant_message_event: Some(AssistantMessageEvent::TextDelta {
+                            content_index: 0,
+                            delta: format!("{} ", chunk),
+                        }),
+                        message: None,
                     });
                 }
             }
 
-            cb.on_event(&PiJsonEvent::TextEnd {
-                content: Some(self.responses.join(" ")),
+            cb.on_event(&PiJsonEvent::MessageUpdate {
+                assistant_message_event: Some(AssistantMessageEvent::TextEnd {
+                    content_index: 0,
+                    content: Some(self.responses.join(" ")),
+                }),
+                message: None,
             });
             cb.on_event(&PiJsonEvent::AgentEnd);
         }
@@ -135,4 +145,134 @@ async fn test_streaming_with_show_thinking_false() {
 
     // Verify engine created successfully with show_thinking=false
     assert!(true);
+}
+
+// Phase 3: Tool call display integration tests
+
+#[tokio::test]
+async fn test_tool_call_display() {
+    use pipeline::cli::terminal_output::TerminalOutputCallback;
+    let callback = TerminalOutputCallback::new(false, 1);
+
+    // Simulate a read tool call sequence
+    let tool_call_start_event = PiJsonEvent::MessageUpdate {
+        assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+            content_index: 1,
+            partial: Message {
+                role: "assistant".to_string(),
+                content: vec![json!({
+                    "type": "toolCall",
+                    "id": "call_123",
+                    "name": "read",
+                    "arguments": {"path": "src/auth.rs"}
+                })],
+            },
+        }),
+        message: None,
+    };
+
+    let tool_execution_end_event = PiJsonEvent::ToolExecutionEnd {
+        tool_call_id: "call_123".to_string(),
+        tool_name: "read".to_string(),
+        result: json!({"content": [{"type": "text", "text": "Read 156 lines"}]}),
+        is_error: false,
+    };
+
+    // Should not panic
+    callback.on_event(&tool_call_start_event);
+    callback.on_event(&tool_execution_end_event);
+}
+
+#[tokio::test]
+async fn test_error_tool_call_display() {
+    use pipeline::cli::terminal_output::TerminalOutputCallback;
+    let callback = TerminalOutputCallback::new(false, 1);
+
+    // Simulate an error during bash execution
+    let tool_call_start_event = PiJsonEvent::MessageUpdate {
+        assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+            content_index: 1,
+            partial: Message {
+                role: "assistant".to_string(),
+                content: vec![json!({
+                    "type": "toolCall",
+                    "id": "call_456",
+                    "name": "bash",
+                    "arguments": {"command": "cargo build"}
+                })],
+            },
+        }),
+        message: None,
+    };
+
+    let tool_execution_end_event = PiJsonEvent::ToolExecutionEnd {
+        tool_call_id: "call_456".to_string(),
+        tool_name: "bash".to_string(),
+        result: json!({"content": [{"type": "text", "text": "error: could not find `missing_crate`"}]}),
+        is_error: true,
+    };
+
+    // Should not panic
+    callback.on_event(&tool_call_start_event);
+    callback.on_event(&tool_execution_end_event);
+}
+
+#[tokio::test]
+async fn test_multiple_tool_calls() {
+    use pipeline::cli::terminal_output::TerminalOutputCallback;
+    let callback = TerminalOutputCallback::new(false, 1);
+
+    // Simulate multiple tool calls in sequence
+    let read_event = PiJsonEvent::MessageUpdate {
+        assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+            content_index: 1,
+            partial: Message {
+                role: "assistant".to_string(),
+                content: vec![json!({
+                    "type": "toolCall",
+                    "id": "call_1",
+                    "name": "read",
+                    "arguments": {"path": "src/file.rs"}
+                })],
+            },
+        }),
+        message: None,
+    };
+
+    let write_event = PiJsonEvent::MessageUpdate {
+        assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+            content_index: 1,
+            partial: Message {
+                role: "assistant".to_string(),
+                content: vec![json!({
+                    "type": "toolCall",
+                    "id": "call_2",
+                    "name": "write",
+                    "arguments": {"path": "src/file.rs", "content": "new content"}
+                })],
+            },
+        }),
+        message: None,
+    };
+
+    let bash_event = PiJsonEvent::MessageUpdate {
+        assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+            content_index: 1,
+            partial: Message {
+                role: "assistant".to_string(),
+                content: vec![json!({
+                    "type": "toolCall",
+                    "id": "call_3",
+                    "name": "bash",
+                    "arguments": {"command": "cargo test"}
+                })],
+            },
+        }),
+        message: None,
+    };
+
+    // Should not panic
+    callback.on_event(&read_event);
+    callback.on_event(&write_event);
+    callback.on_event(&bash_event);
 }

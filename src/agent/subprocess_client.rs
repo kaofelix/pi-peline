@@ -1,6 +1,7 @@
 //! Pi CLI subprocess client - calls pi in print mode
 
 use crate::agent::{AgentError, PiJsonEvent, AgentResponse};
+use crate::agent::pi_events::AssistantMessageEvent;
 use crate::agent::streaming::ProgressCallback;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -129,9 +130,28 @@ impl PiSubprocessClient {
                     // Parse the line as a JSON event
                     match serde_json::from_str::<PiJsonEvent>(&line) {
                         Ok(event) => {
-                            // Accumulate text from TextDelta events
-                            if let PiJsonEvent::TextDelta { delta } = &event {
-                                accumulated_text.push_str(delta);
+                            debug!("Parsed event: {:?}", event);
+
+                            // Handle different event types
+                            match &event {
+                                PiJsonEvent::MessageUpdate { assistant_message_event, .. } => {
+                                    // Extract text from nested MessageUpdate events
+                                    if let Some(assistant_event) = assistant_message_event {
+                                        match assistant_event {
+                                            AssistantMessageEvent::TextDelta { delta, .. } => {
+                                                accumulated_text.push_str(delta);
+                                            }
+                                            AssistantMessageEvent::TextEnd { content, .. } => {
+                                                debug!("Received text_end event with content: {:?}", content);
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                PiJsonEvent::Session { .. } => {
+                                    debug!("Received session event");
+                                }
+                                _ => {}
                             }
 
                             // Call callback if provided

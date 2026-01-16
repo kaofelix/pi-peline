@@ -1,0 +1,8 @@
+name: "Smoke Test Pipeline"
+
+steps:
+  - id: "greet"
+    name: "Greeting"
+    prompt: "Say hello in one sentence."
+    termination:
+      success_pattern: "."

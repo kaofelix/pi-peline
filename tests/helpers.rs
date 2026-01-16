@@ -7,6 +7,7 @@ use pipeline::core::{
 };
 use pipeline::execution::{ExecutionEngine, SchedulingStrategy};
 use pipeline::agent::{AgentExecutor, AgentError, AgentResponse, ProgressCallback, PiJsonEvent};
+use pipeline::agent::pi_events::AssistantMessageEvent;
 use pipeline::core::step::ConditionPattern;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -76,13 +77,21 @@ impl AgentExecutor for MockAgent {
             cb.on_event(&PiJsonEvent::AgentStart);
 
             for ch in response.chars() {
-                cb.on_event(&PiJsonEvent::TextDelta {
-                    delta: ch.to_string(),
+                cb.on_event(&PiJsonEvent::MessageUpdate {
+                    assistant_message_event: Some(AssistantMessageEvent::TextDelta {
+                        content_index: 0,
+                        delta: ch.to_string(),
+                    }),
+                    message: None,
                 });
             }
 
-            cb.on_event(&PiJsonEvent::TextEnd {
-                content: Some(response.clone()),
+            cb.on_event(&PiJsonEvent::MessageUpdate {
+                assistant_message_event: Some(AssistantMessageEvent::TextEnd {
+                    content_index: 0,
+                    content: Some(response.clone()),
+                }),
+                message: None,
             });
 
             cb.on_event(&PiJsonEvent::AgentEnd);

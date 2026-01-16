@@ -36,13 +36,20 @@ pub trait AgentExecutor: Send + Sync {
     /// ```no_run
     /// # use pipeline::{AgentExecutor, PiAgentClient, AgentClientConfig};
     /// # use pipeline::agent::{ProgressCallback, PiJsonEvent};
+    /// # use pipeline::agent::pi_events::AssistantMessageEvent;
     /// #
     /// struct MyCallback;
     ///
     /// impl ProgressCallback for MyCallback {
     ///     fn on_event(&self, event: &PiJsonEvent) {
     ///         match event {
-    ///             PiJsonEvent::TextDelta { delta } => print!("{}", delta),
+    ///             PiJsonEvent::MessageUpdate { assistant_message_event, .. } => {
+    ///                 if let Some(evt) = assistant_message_event {
+    ///                     if let AssistantMessageEvent::TextDelta { delta, .. } = evt {
+    ///                         print!("{}", delta);
+    ///                     }
+    ///                 }
+    ///             }
     ///             PiJsonEvent::AgentEnd => println!("\n[Done]"),
     ///             _ => {}
     ///         }

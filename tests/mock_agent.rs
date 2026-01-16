@@ -4,6 +4,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use async_trait::async_trait;
 use pipeline::{AgentExecutor, AgentResponse, AgentError, PiJsonEvent, ProgressCallback};
+use pipeline::agent::pi_events::{AssistantMessageEvent, Message, ToolCall};
+use serde_json::json;
 
 /// Mock agent that returns predefined responses
 ///
@@ -48,6 +50,121 @@ impl MockAgent {
     /// Get the current response index (how many have been used)
     pub fn current_index(&self) -> usize {
         self.index.load(Ordering::SeqCst)
+    }
+
+    // Phase 3: Tool call event generators
+
+    /// Create a ToolcallStart event
+    pub fn mock_toolcall_start_event(tool_name: &str, args: serde_json::Value) -> PiJsonEvent {
+        let partial = Message {
+            role: "assistant".to_string(),
+            content: vec![json!({
+                "type": "toolCall",
+                "id": "call_123",
+                "name": tool_name,
+                "arguments": args
+            })],
+        };
+
+        PiJsonEvent::MessageUpdate {
+            assistant_message_event: Some(AssistantMessageEvent::ToolcallStart {
+                content_index: 1,
+                partial,
+            }),
+            message: None,
+        }
+    }
+
+    /// Create a ToolcallEnd event
+    pub fn mock_toolcall_end_event(tool_name: &str, args: serde_json::Value) -> PiJsonEvent {
+        let tool_call = ToolCall {
+            tool_type: "toolCall".to_string(),
+            id: "call_123".to_string(),
+            name: tool_name.to_string(),
+            arguments: args.clone(),
+        };
+
+        let partial = Message {
+            role: "assistant".to_string(),
+            content: vec![json!({
+                "type": "toolCall",
+                "id": "call_123",
+                "name": tool_name,
+                "arguments": args
+            })],
+        };
+
+        PiJsonEvent::MessageUpdate {
+            assistant_message_event: Some(AssistantMessageEvent::ToolcallEnd {
+                content_index: 1,
+                tool_call,
+                partial,
+            }),
+            message: None,
+        }
+    }
+
+    /// Create a ToolExecutionStart event
+    pub fn mock_tool_execution_start_event(tool_name: &str, args: serde_json::Value) -> PiJsonEvent {
+        PiJsonEvent::ToolExecutionStart {
+            tool_call_id: "call_123".to_string(),
+            tool_name: tool_name.to_string(),
+            args,
+        }
+    }
+
+    /// Create a ToolExecutionEnd event
+    pub fn mock_tool_execution_end_event(
+        tool_name: &str,
+        result: serde_json::Value,
+        is_error: bool,
+    ) -> PiJsonEvent {
+        PiJsonEvent::ToolExecutionEnd {
+            tool_call_id: "call_123".to_string(),
+            tool_name: tool_name.to_string(),
+            result,
+            is_error,
+        }
+    }
+
+    /// Create a complete read tool call sequence
+    pub fn mock_read_file(path: &str, result: &str) -> Vec<PiJsonEvent> {
+        vec![
+            Self::mock_toolcall_start_event("read", json!({"path": path})),
+            Self::mock_toolcall_end_event("read", json!({"path": path})),
+            Self::mock_tool_execution_start_event("read", json!({"path": path})),
+            Self::mock_tool_execution_end_event("read", json!({"content": [{"type": "text", "text": result}]}), false),
+        ]
+    }
+
+    /// Create a complete write tool call sequence
+    pub fn mock_write_file(path: &str, content: &str) -> Vec<PiJsonEvent> {
+        vec![
+            Self::mock_toolcall_start_event("write", json!({"path": path, "content": content})),
+            Self::mock_toolcall_end_event("write", json!({"path": path, "content": content})),
+            Self::mock_tool_execution_start_event("write", json!({"path": path, "content": content})),
+            Self::mock_tool_execution_end_event("write", json!({"content": [{"type": "text", "text": "Wrote file"}]}), false),
+        ]
+    }
+
+    /// Create a complete bash tool call sequence
+    pub fn mock_bash_command(command: &str, result: &str, is_error: bool) -> Vec<PiJsonEvent> {
+        vec![
+            Self::mock_toolcall_start_event("bash", json!({"command": command})),
+            Self::mock_toolcall_end_event("bash", json!({"command": command})),
+            Self::mock_tool_execution_start_event("bash", json!({"command": command})),
+            Self::mock_tool_execution_end_event("bash", json!({"content": [{"type": "text", "text": result}]}), is_error),
+        ]
+    }
+
+    /// Create a complete edit tool call sequence
+    pub fn mock_edit_file(path: &str, old_text: &str, new_text: &str) -> Vec<PiJsonEvent> {
+        vec![
+            Self::mock_toolcall_start_event("edit", json!({"path": path, "oldText": old_text, "newText": new_text})),
+            Self::mock_toolcall_end_event("edit", json!({"path": path, "oldText": old_text, "newText": new_text})),
+            Self::mock_tool_execution_start_event("edit", json!({"path": path, "oldText": old_text, "newText": new_text})),
+            Self::mock_tool_execution_end_event("edit", json!({"content": [{"type": "text", "text": "Modified file"}]}), false),
+        ]
     }
 }
 
@@ -111,14 +228,22 @@ impl AgentExecutor for MockAgent {
 
             // TextDelta events (split by characters for simplicity)
             for ch in response.chars() {
-                cb.on_event(&PiJsonEvent::TextDelta {
-                    delta: ch.to_string(),
+                cb.on_event(&PiJsonEvent::MessageUpdate {
+                    assistant_message_event: Some(AssistantMessageEvent::TextDelta {
+                        content_index: 0,
+                        delta: ch.to_string(),
+                    }),
+                    message: None,
                 });
             }
 
             // TextEnd
-            cb.on_event(&PiJsonEvent::TextEnd {
-                content: Some(response.clone()),
+            cb.on_event(&PiJsonEvent::MessageUpdate {
+                assistant_message_event: Some(AssistantMessageEvent::TextEnd {
+                    content_index: 0,
+                    content: Some(response.clone()),
+                }),
+                message: None,
             });
 
             // AgentEnd
@@ -281,11 +406,8 @@ mod tests {
 
         // Check events
         let events = callback.get_events();
-        assert_eq!(events.len(), 5); // AgentStart, 2x TextDelta, TextEnd, AgentEnd
+        assert_eq!(events.len(), 5); // AgentStart, 2x MessageUpdate with TextDelta, MessageUpdate with TextEnd, AgentEnd
         assert_eq!(events[0], PiJsonEvent::AgentStart);
-        assert_eq!(events[1], PiJsonEvent::TextDelta { delta: "H".to_string() });
-        assert_eq!(events[2], PiJsonEvent::TextDelta { delta: "i".to_string() });
-        assert_eq!(events[3], PiJsonEvent::TextEnd { content: Some("Hi".to_string()) });
         assert_eq!(events[4], PiJsonEvent::AgentEnd);
     }
 
@@ -320,5 +442,109 @@ mod tests {
         // "First" (5 chars): AgentStart + 5*TextDelta + TextEnd + AgentEnd = 8 events
         // "Second" (6 chars): AgentStart + 6*TextDelta + TextEnd + AgentEnd = 9 events
         assert_eq!(*count.lock().unwrap(), 17);
+    }
+
+    // Phase 3: Tool call event generator tests
+
+    #[test]
+    fn test_mock_toolcall_start_event() {
+        let event = MockAgent::mock_toolcall_start_event("read", json!({"path": "src/file.rs"}));
+
+        match event {
+            PiJsonEvent::MessageUpdate { assistant_message_event, .. } => {
+                assert!(assistant_message_event.is_some());
+                match assistant_message_event.unwrap() {
+                    AssistantMessageEvent::ToolcallStart { partial, .. } => {
+                        assert_eq!(partial.role, "assistant");
+                        assert_eq!(partial.content.len(), 1);
+                    }
+                    _ => panic!("Expected ToolcallStart"),
+                }
+            }
+            _ => panic!("Expected MessageUpdate"),
+        }
+    }
+
+    #[test]
+    fn test_mock_toolcall_end_event() {
+        let event = MockAgent::mock_toolcall_end_event("bash", json!({"command": "ls"}));
+
+        match event {
+            PiJsonEvent::MessageUpdate { assistant_message_event, .. } => {
+                assert!(assistant_message_event.is_some());
+                match assistant_message_event.unwrap() {
+                    AssistantMessageEvent::ToolcallEnd { tool_call, .. } => {
+                        assert_eq!(tool_call.name, "bash");
+                        assert_eq!(tool_call.id, "call_123");
+                    }
+                    _ => panic!("Expected ToolcallEnd"),
+                }
+            }
+            _ => panic!("Expected MessageUpdate"),
+        }
+    }
+
+    #[test]
+    fn test_mock_tool_execution_start_event() {
+        let event = MockAgent::mock_tool_execution_start_event("bash", json!({"command": "ls"}));
+
+        match event {
+            PiJsonEvent::ToolExecutionStart { tool_name, tool_call_id, .. } => {
+                assert_eq!(tool_name, "bash");
+                assert_eq!(tool_call_id, "call_123");
+            }
+            _ => panic!("Expected ToolExecutionStart"),
+        }
+    }
+
+    #[test]
+    fn test_mock_tool_execution_end_event() {
+        let event = MockAgent::mock_tool_execution_end_event("bash", json!({"output": "done"}), false);
+
+        match event {
+            PiJsonEvent::ToolExecutionEnd { tool_name, is_error, .. } => {
+                assert_eq!(tool_name, "bash");
+                assert_eq!(is_error, false);
+            }
+            _ => panic!("Expected ToolExecutionEnd"),
+        }
+    }
+
+    #[test]
+    fn test_mock_read_file() {
+        let events = MockAgent::mock_read_file("src/file.rs", "content");
+        assert_eq!(events.len(), 4); // ToolcallStart, ToolcallEnd, ToolExecutionStart, ToolExecutionEnd
+    }
+
+    #[test]
+    fn test_mock_write_file() {
+        let events = MockAgent::mock_write_file("src/file.rs", "content");
+        assert_eq!(events.len(), 4);
+    }
+
+    #[test]
+    fn test_mock_bash_command() {
+        let events = MockAgent::mock_bash_command("ls", "output", false);
+        assert_eq!(events.len(), 4);
+    }
+
+    #[test]
+    fn test_mock_bash_command_with_error() {
+        let events = MockAgent::mock_bash_command("ls", "error", true);
+        assert_eq!(events.len(), 4);
+
+        // Check last event is an error
+        match &events[3] {
+            PiJsonEvent::ToolExecutionEnd { is_error, .. } => {
+                assert!(*is_error);
+            }
+            _ => panic!("Expected ToolExecutionEnd"),
+        }
+    }
+
+    #[test]
+    fn test_mock_edit_file() {
+        let events = MockAgent::mock_edit_file("src/file.rs", "old", "new");
+        assert_eq!(events.len(), 4);
     }
 }

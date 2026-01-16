@@ -40,7 +40,7 @@ Track technical debt, bugs, and future improvements for the pi-peline project.
 
 ---
 
-## Broken Tests
+## Fixed Issues
 
 ### Smoke Tests Outdated
 
@@ -48,16 +48,15 @@ Track technical debt, bugs, and future improvements for the pi-peline project.
 
 **Root Cause:** The tests use `PiAgentClient.execute()` which calls the non-streaming `subprocess_client.execute()` (text mode), not the streaming JSON mode. The termination patterns aren't found because the output is in text mode, not parsed JSON.
 
-**Status:** Tests need to be updated to use streaming mode or use MockAgent instead.
+**Status:** ✅ Fixed
 
-**Priority:** Medium (smoke tests useful for catching regressions)
+**Solution:** Replaced Rust-based smoke tests with bash script `scripts/smoke_test.sh` that:
+- Runs the actual binary with real Pi agent
+- Tests core functionality (run, validate, help, variables, streaming)
+- Validates output with simple grep patterns
+- Fast and catches regressions
 
-**Proposed Fix:**
-1. Update tests to use MockAgent (which doesn't require Pi CLI)
-2. Or create a streaming-aware test runner
-3. For now, rely on lib tests for smoke testing
-
-**Date Identified:** 2026-01-16
+**Date Fixed:** 2026-01-16
 
 ---
 
@@ -153,3 +152,96 @@ Or use --no-history to skip database persistence.
 - Or keep as-is - the file is useful for debugging
 
 **Priority:** Low (works as-is, may not need optimization)
+
+---
+
+## Observability
+
+### Tool Call ID Validation Not Full
+
+**Issue:** ToolExecutionStart/End events include a `tool_call_id` field, but the current implementation only tracks a counter rather than storing and validating the actual IDs.
+
+**Current Behavior:**
+- `ToolcallEnd` event increments a counter
+- `ToolExecutionStart` shows warning if counter is 0
+- No actual ID matching between events
+
+**Proposed Fix:**
+- Store the actual `tool_call_id` string from `ToolcallEnd`
+- Verify that `ToolExecutionStart/End` have matching IDs
+- Log errors or show warnings for ID mismatches (debugging aid)
+
+**Files to Modify:**
+- `src/cli/terminal_output.rs` - Add String field for actual ID storage
+
+**Priority:** Low (current counter-based approach works, but full validation would be more robust)
+
+---
+
+### Bash Command Result Formatting Could Be More Informative
+
+**Issue:** For bash commands, the result summary just shows the output or "completed". No exit code or command-specific context is displayed.
+
+**Current Behavior:**
+```
+<bash: cargo build>
+  Executing bash...
+  ✓ completed  (or shows first line of output)
+```
+
+**Proposed Fix:** Extract exit code from result if available and format as:
+```
+  ✓ exit code: 0
+  ✗ exit code: 1 - error message
+```
+
+**Files to Modify:**
+- `src/cli/terminal_output.rs` - `extract_result_summary()` method
+
+**Priority:** Low (current output is functional, just could be more informative)
+
+---
+
+### ToolExecutionUpdate Events Not Handled
+
+**Issue:** ToolExecutionUpdate events are ignored, but they could stream bash command output in real-time.
+
+**Current Behavior:** Long-running bash commands have no feedback until completion.
+
+**Proposed Fix:** Add case for `ToolExecutionUpdate` to stream partial results for bash commands. This would show command output as it's generated, similar to how text deltas are streamed.
+
+**Files to Modify:**
+- `src/cli/terminal_output.rs` - `on_event()` method
+
+**Priority:** Medium (improves UX for long-running commands)
+**Deferred to:** Phase 4 (Interruption & Steering) or later
+
+---
+
+### Colors Don't Support --no-color Flag
+
+**Issue:** Colors are hardcoded as ANSI escape codes. When Phase 5 adds `--no-color`, this will need refactoring.
+
+**Current Behavior:**
+```rust
+pub fn get_tool_color(tool_name: &str) -> String {
+    match tool_name {
+        "read" => "\x1b[34m",  // Hardcoded ANSI
+        ...
+    }
+}
+```
+
+**Proposed Fix:**
+- Add a `no_color: bool` field to `TerminalOutputCallback`
+- Add `should_color()` helper that checks both `no_color` and terminal capability
+- Modify all color methods to return empty string when colors disabled
+
+**Files to Modify:**
+- `src/cli/terminal_output.rs` - Add `no_color` field and `should_color()` method
+- `src/cli/commands.rs` - Add `--no-color` CLI flag
+- `src/execution/engine.rs` - Propagate `no_color` flag
+- `src/execution/executor.rs` - Pass `no_color` to callback constructor
+
+**Priority:** Medium (required for Phase 5)
+**Deferred to:** Phase 5 (Output Controls)
