@@ -577,6 +577,15 @@ mod tests {
                 Ok(AgentResponse::new("DONE".to_string()))
             }
         }
+
+        async fn execute_streaming(
+            &self,
+            _prompt: &str,
+            _callback: Option<&dyn crate::agent::ProgressCallback>,
+        ) -> Result<AgentResponse, AgentError> {
+            // For testing, delegate to execute
+            self.execute(_prompt).await
+        }
     }
 
     #[tokio::test]

@@ -6,7 +6,7 @@ use pipeline::core::{
     ExecutionStatus,
 };
 use pipeline::execution::{ExecutionEngine, SchedulingStrategy};
-use pipeline::agent::{AgentExecutor, AgentError, AgentResponse};
+use pipeline::agent::{AgentExecutor, AgentError, AgentResponse, ProgressCallback, PiJsonEvent};
 use pipeline::core::step::ConditionPattern;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -47,6 +47,48 @@ impl AgentExecutor for MockAgent {
         }
 
         Ok(AgentResponse::new(self.responses[idx].clone()))
+    }
+
+    async fn execute_streaming(
+        &self,
+        _prompt: &str,
+        callback: Option<&dyn ProgressCallback>,
+    ) -> Result<AgentResponse, AgentError> {
+        // Get the response
+        let idx = self.index.fetch_add(1, Ordering::SeqCst);
+
+        if idx >= self.responses.len() {
+            return Err(AgentError::Internal(format!(
+                "MockAgent: No response available for request {}",
+                idx + 1
+            )));
+        }
+
+        let response = &self.responses[idx];
+
+        // Simulate delay if configured
+        if let Some(delay) = self.simulate_delay {
+            tokio::time::sleep(delay).await;
+        }
+
+        // Generate synthetic events if callback provided
+        if let Some(cb) = callback {
+            cb.on_event(&PiJsonEvent::AgentStart);
+
+            for ch in response.chars() {
+                cb.on_event(&PiJsonEvent::TextDelta {
+                    delta: ch.to_string(),
+                });
+            }
+
+            cb.on_event(&PiJsonEvent::TextEnd {
+                content: Some(response.clone()),
+            });
+
+            cb.on_event(&PiJsonEvent::AgentEnd);
+        }
+
+        Ok(AgentResponse::new(response.clone()))
     }
 }
 

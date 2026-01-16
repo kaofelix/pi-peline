@@ -8,5 +8,6 @@ pub mod persistence;
 
 // Re-export commonly used types
 pub use agent::{AgentExecutor, AgentResponse, AgentError, PiAgentClient, AgentClientConfig};
+pub use agent::{PiJsonEvent, ProgressCallback};
 pub use core::{Pipeline, Step, StepState, PipelineContext, ExecutionStatus};
 pub use execution::{ExecutionEngine, SchedulingStrategy, ExecutionEvent};

@@ -62,6 +62,7 @@ impl<A: AgentExecutor> StepExecutor<A> {
         debug!("Effective prompt for step {}: {}", step.id, effective_prompt);
 
         // Execute with timeout
+        // TODO: Phase 2 - Switch to execute_streaming with progress callbacks for live output display
         let timeout_duration = Duration::from_secs(step.timeout_secs);
         let result = match timeout(timeout_duration, self.agent.execute(&effective_prompt)).await {
             Ok(Ok(response)) => response,
@@ -156,6 +157,15 @@ mod tests {
     #[async_trait::async_trait]
     impl AgentExecutor for MockAgent {
         async fn execute(&self, _prompt: &str) -> Result<AgentResponse, crate::agent::AgentError> {
+            Ok(AgentResponse::new(self.response.clone()))
+        }
+
+        async fn execute_streaming(
+            &self,
+            _prompt: &str,
+            _callback: Option<&dyn crate::agent::ProgressCallback>,
+        ) -> Result<AgentResponse, crate::agent::AgentError> {
+            // For testing, just return the same response
             Ok(AgentResponse::new(self.response.clone()))
         }
     }

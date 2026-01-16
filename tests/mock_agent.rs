@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use async_trait::async_trait;
-use pipeline::{AgentExecutor, AgentResponse, AgentError};
+use pipeline::{AgentExecutor, AgentResponse, AgentError, PiJsonEvent, ProgressCallback};
 
 /// Mock agent that returns predefined responses
 ///
@@ -78,6 +78,61 @@ impl AgentExecutor for MockAgent {
         );
 
         Ok(AgentResponse::new(self.responses[idx].clone()))
+    }
+
+    async fn execute_streaming(
+        &self,
+        prompt: &str,
+        callback: Option<&dyn ProgressCallback>,
+    ) -> Result<AgentResponse, AgentError> {
+        // Get the same response as execute() would
+        let idx = self.index.fetch_add(1, Ordering::SeqCst);
+
+        if idx >= self.responses.len() {
+            return Err(AgentError::Internal(format!(
+                "MockAgent: No response available for request {} (have {} responses). Prompt: {}",
+                idx + 1,
+                self.responses.len(),
+                prompt
+            )));
+        }
+
+        let response = &self.responses[idx];
+
+        // Simulate delay if configured
+        if let Some(delay) = self.simulate_delay {
+            tokio::time::sleep(delay).await;
+        }
+
+        // Generate synthetic events if callback provided
+        if let Some(cb) = callback {
+            // AgentStart
+            cb.on_event(&PiJsonEvent::AgentStart);
+
+            // TextDelta events (split by characters for simplicity)
+            for ch in response.chars() {
+                cb.on_event(&PiJsonEvent::TextDelta {
+                    delta: ch.to_string(),
+                });
+            }
+
+            // TextEnd
+            cb.on_event(&PiJsonEvent::TextEnd {
+                content: Some(response.clone()),
+            });
+
+            // AgentEnd
+            cb.on_event(&PiJsonEvent::AgentEnd);
+        }
+
+        tracing::debug!(
+            "[MockAgent] Streaming response to request {}: {} bytes, prompt prefix: {}",
+            idx,
+            response.len(),
+            &prompt[..prompt.len().min(50)]
+        );
+
+        Ok(AgentResponse::new(response.clone()))
     }
 }
 
@@ -175,5 +230,95 @@ mod tests {
 
         agent.execute("").await.unwrap();
         assert_eq!(agent.current_index(), 3);
+    }
+
+    // Tests for execute_streaming
+    #[tokio::test]
+    async fn test_mock_agent_streaming_with_no_callback() {
+        let agent = MockAgent::new(vec!["Hello World".to_string()]);
+        let result = agent.execute_streaming("", None).await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.content, "Hello World");
+        assert!(response.done);
+    }
+
+    #[tokio::test]
+    async fn test_mock_agent_streaming_with_callback() {
+        use std::sync::{Arc, Mutex};
+
+        struct TestCallback {
+            events: Arc<Mutex<Vec<PiJsonEvent>>>,
+        }
+
+        impl TestCallback {
+            fn new() -> Self {
+                Self {
+                    events: Arc::new(Mutex::new(Vec::new())),
+                }
+            }
+
+            fn get_events(&self) -> Vec<PiJsonEvent> {
+                self.events.lock().unwrap().clone()
+            }
+        }
+
+        impl ProgressCallback for TestCallback {
+            fn on_event(&self, event: &PiJsonEvent) {
+                self.events.lock().unwrap().push(event.clone());
+            }
+        }
+
+        let agent = MockAgent::new(vec!["Hi".to_string()]);
+        let callback = TestCallback::new();
+
+        let result = agent.execute_streaming("", Some(&callback)).await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.content, "Hi");
+
+        // Check events
+        let events = callback.get_events();
+        assert_eq!(events.len(), 5); // AgentStart, 2x TextDelta, TextEnd, AgentEnd
+        assert_eq!(events[0], PiJsonEvent::AgentStart);
+        assert_eq!(events[1], PiJsonEvent::TextDelta { delta: "H".to_string() });
+        assert_eq!(events[2], PiJsonEvent::TextDelta { delta: "i".to_string() });
+        assert_eq!(events[3], PiJsonEvent::TextEnd { content: Some("Hi".to_string()) });
+        assert_eq!(events[4], PiJsonEvent::AgentEnd);
+    }
+
+    #[tokio::test]
+    async fn test_mock_agent_streaming_multiple_calls() {
+        use std::sync::{Arc, Mutex};
+
+        struct CountingCallback {
+            count: Arc<Mutex<usize>>,
+        }
+
+        impl ProgressCallback for CountingCallback {
+            fn on_event(&self, _event: &PiJsonEvent) {
+                *self.count.lock().unwrap() += 1;
+            }
+        }
+
+        let agent = MockAgent::new(vec![
+            "First".to_string(),
+            "Second".to_string(),
+        ]);
+
+        let count = Arc::new(Mutex::new(0));
+
+        let cb1 = CountingCallback { count: count.clone() };
+        agent.execute_streaming("", Some(&cb1)).await.unwrap();
+
+        let cb2 = CountingCallback { count: count.clone() };
+        agent.execute_streaming("", Some(&cb2)).await.unwrap();
+
+        // Events per call: AgentStart + N*TextDelta + TextEnd + AgentEnd
+        // "First" (5 chars): AgentStart + 5*TextDelta + TextEnd + AgentEnd = 8 events
+        // "Second" (6 chars): AgentStart + 6*TextDelta + TextEnd + AgentEnd = 9 events
+        assert_eq!(*count.lock().unwrap(), 17);
     }
 }

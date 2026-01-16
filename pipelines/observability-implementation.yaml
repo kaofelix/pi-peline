@@ -1,0 +1,79 @@
+name: "Observability Phase Implementation"
+version: "1.0"
+
+variables:
+  observability_plan: "./OBSERVABILITY_PLAN.md"
+  phase_number: "1"
+  state_file: "./.observability-state.md"
+
+steps:
+  - id: "analyze"
+    name: "Analyze Phase"
+    prompt: |
+      Read {{ observability_plan }} and analyze Phase {{ phase_number }}.
+
+      Create a detailed implementation plan for this phase:
+      - List all specific tasks
+      - Identify files to modify or create
+      - Define acceptance criteria
+      - Estimate complexity
+
+      Track your plan in {{ state_file }} under "Phase {{ phase_number }} Plan".
+
+      End with: ✅ ANALYSIS_COMPLETE
+    termination:
+      success_pattern: "✅ ANALYSIS_COMPLETE"
+      on_success: "implement"
+
+  - id: "implement"
+    name: "Implement Phase"
+    depends_on: ["analyze"]
+    prompt: |
+      Implement Phase {{ phase_number }} from the observability plan.
+
+      Work from your analysis in {{ state_file }}. Complete all tasks to acceptance criteria.
+
+      Track your progress in {{ state_file }} under "Phase {{ phase_number }} Implementation".
+
+      Continue working until all tasks are complete.
+
+      If you have more work to do in the next turn, end with: 🔄 CONTINUE
+      When fully complete, end with: ✅ IMPLEMENTATION_COMPLETE
+
+      # Implementation Mode: TDD
+
+      We want to follow Canonical TDD, Kent Beck style for this. For each component or set of functionality we come up with in the plan we will:
+        1. Come up with a **test list** that describes the behaviour it should have. **Break big tasks** into atomic testable pieces. The list is living—add new tests as you discover edge cases, and **cross off tests** as you complete them. If there are existing tests that should change instead, add those to the list.
+        2. Take the simplest test from the list, write it and **see it fail for the right reason** (e.g., method doesn't exist, wrong return value—not syntax error or unrelated failure). **ONE failing test** at a time per behavior.
+        3. **Write test → See it fail → Minimal fix → See it pass**. Implement just enough code to make the test pass, no more. When stuck, start with hard-coded values ("Fake It"), then use triangulation (add another test case) to force generalization to the real implementation.
+        4. **Review the code and refactor** for readability, clarity and removing duplication. **Tests must stay green** during refactoring. Only refactor when all tests pass.
+        5. **No skipping ahead**: Don't write production code except to pass a failing test. Don't write multiple tests at once.
+        6. If there are more tests on the list, **go back to 2**.
+
+        **Remember**: Red → Green → Refactor. Keep the cycle tight and disciplined.
+    termination:
+      success_pattern: "✅ IMPLEMENTATION_COMPLETE"
+      on_success: "review"
+    continuation:
+      pattern: "🔄 CONTINUE"
+      action: "retry"
+
+  - id: "review"
+    name: "Review & Improve"
+    depends_on: ["implement"]
+    prompt: |
+      Review the Phase {{ phase_number }} implementation.
+
+      Check against the original plan in {{ observability_plan }} and your analysis in {{ state_file }}.
+
+      Find opportunities for improvement. Document them in {{ state_file }} under "Phase {{ phase_number }} Review".
+
+      Apply improvements if needed.
+
+      If you have more work to do in the next turn, end with: 🔄 CONTINUE      
+      End with: ✅ REVIEW_COMPLETE
+    termination:
+      success_pattern: "✅ REVIEW_COMPLETE"
+    continuation:
+      pattern: "🔄 CONTINUE"
+      action: "retry"
