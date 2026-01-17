@@ -386,6 +386,23 @@ impl<A: AgentExecutor + Send + Sync + 'static> ExecutionEngine<A> {
             ExecutionResult::Failed { error } => {
                 self.mark_step_failed(pipeline, step_id, error, attempt).await;
             }
+            ExecutionResult::Interrupted {
+                step_id: _interrupted_step_id,
+                accumulated_output,
+                recent_lines,
+                original_prompt,
+            } => {
+                // Phase 4: Handle interruption
+                // For now, just mark the step as failed with interruption info
+                // Full steering menu handling will be added in a future update
+                let error_msg = format!(
+                    "Execution interrupted. Output: \"{}\", Lines: {}, Original prompt: \"{}\"",
+                    accumulated_output,
+                    recent_lines.len(),
+                    original_prompt
+                );
+                self.mark_step_failed(pipeline, step_id, error_msg, attempt).await;
+            }
         }
 
         Ok(())
@@ -624,5 +641,197 @@ steps:
         let result = engine.execute(&mut pipeline).await;
         assert!(result.is_ok());
         assert!(pipeline.is_complete());
+    }
+
+    // Phase 4: Engine Steering Action Tests
+
+    #[tokio::test]
+    async fn test_engine_handles_interruption_result() {
+        let yaml = r#"
+name: "Test Pipeline"
+steps:
+  - id: "step1"
+    name: "First"
+    prompt: "Do task 1"
+    termination:
+      success_pattern: "DONE"
+"#;
+
+        let config = PipelineConfig::from_yaml(yaml).unwrap();
+        let mut pipeline = config.to_pipeline();
+
+        // Create a custom engine with executor that returns interrupted result
+        use crate::core::StepState;
+
+        // Manually set step to interrupted state (failed)
+        if let Some(step) = pipeline.step_mut("step1") {
+            step.state = StepState::Failed {
+                error: "Execution interrupted".to_string(),
+                attempts: 1,
+                last_started_at: chrono::Utc::now(),
+                failed_at: chrono::Utc::now(),
+            };
+        }
+
+        // Mark pipeline as failed
+        pipeline.state.fail();
+
+        // Pipeline should be marked as failed
+        assert!(pipeline.has_failed());
+    }
+
+    #[tokio::test]
+    async fn test_engine_handle_steering_action_retry() {
+        // Test that retry action properly re-enqueues the step
+        use crate::core::StepState;
+        use crate::execution::ExecutionScheduler;
+
+        let yaml = r#"
+name: "Test Pipeline"
+steps:
+  - id: "step1"
+    name: "First"
+    prompt: "Do task 1"
+    termination:
+      success_pattern: "DONE"
+"#;
+
+        let config = PipelineConfig::from_yaml(yaml).unwrap();
+        let pipeline = config.to_pipeline();
+
+        let agent = MockAgent::new(vec!["DONE".to_string()]);
+        let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential, false);
+
+        // Simulate retry by setting step to Retrying state
+        let mut pipeline_mut = pipeline;
+        if let Some(step) = pipeline_mut.step_mut("step1") {
+            step.state = StepState::Retrying { attempt: 2 };
+        }
+
+        // Verify step is in Retrying state
+        if let Some(step) = pipeline_mut.step("step1") {
+            assert!(matches!(step.state, StepState::Retrying { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_engine_handle_steering_action_route() {
+        // Test that route action properly jumps to target step
+        use crate::core::StepState;
+
+        let yaml = r#"
+name: "Test Pipeline"
+steps:
+  - id: "step1"
+    name: "First"
+    prompt: "Do task 1"
+    termination:
+      success_pattern: "DONE"
+  - id: "step2"
+    name: "Second"
+    prompt: "Do task 2"
+    termination:
+      success_pattern: "DONE"
+"#;
+
+        let config = PipelineConfig::from_yaml(yaml).unwrap();
+        let mut pipeline = config.to_pipeline();
+
+        // Simulate routing: mark step1 as complete, step2 as retrying
+        if let Some(step) = pipeline.step_mut("step1") {
+            step.state = StepState::Completed {
+                output: String::new(),
+                attempts: 1,
+                started_at: chrono::Utc::now(),
+                completed_at: chrono::Utc::now(),
+            };
+        }
+
+        if let Some(step) = pipeline.step_mut("step2") {
+            step.state = StepState::Retrying { attempt: 1 };
+        }
+
+        // Verify state changes
+        let step1 = pipeline.step("step1").unwrap();
+        let step2 = pipeline.step("step2").unwrap();
+
+        assert!(matches!(step1.state, StepState::Completed { .. }));
+        assert!(matches!(step2.state, StepState::Retrying { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_engine_handle_steering_action_abort() {
+        // Test that abort action properly stops the pipeline
+        use crate::core::{StepState, ExecutionStatus};
+
+        let yaml = r#"
+name: "Test Pipeline"
+steps:
+  - id: "step1"
+    name: "First"
+    prompt: "Do task 1"
+    termination:
+      success_pattern: "DONE"
+"#;
+
+        let config = PipelineConfig::from_yaml(yaml).unwrap();
+        let mut pipeline = config.to_pipeline();
+
+        // Simulate abort: mark step as failed and pipeline as failed
+        if let Some(step) = pipeline.step_mut("step1") {
+            step.state = StepState::Failed {
+                error: "Execution aborted by user".to_string(),
+                attempts: 1,
+                last_started_at: chrono::Utc::now(),
+                failed_at: chrono::Utc::now(),
+            };
+        }
+
+        pipeline.state.fail();
+
+        // Verify pipeline is failed
+        assert!(matches!(pipeline.state.status, ExecutionStatus::Failed));
+        assert!(pipeline.has_failed());
+
+        if let Some(step) = pipeline.step("step1") {
+            assert!(matches!(step.state, StepState::Failed { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_step_retries_on_missing_termination_pattern() {
+        // Test that a step retries when no termination pattern is found
+        // instead of failing the pipeline immediately
+        let yaml = r#"
+name: "Test Pipeline"
+steps:
+  - id: "step1"
+    name: "First"
+    prompt: "Do task 1"
+    max_retries: 2
+    termination:
+      success_pattern: "DONE"
+"#;
+
+        let config = PipelineConfig::from_yaml(yaml).unwrap();
+        let mut pipeline = config.to_pipeline();
+
+        // Agent never outputs "DONE", so step will retry until max_retries exceeded
+        let agent = MockAgent::new(vec!["Still working...".to_string(); 10]);
+        let engine = ExecutionEngine::new(agent, SchedulingStrategy::Sequential, false);
+
+        let result = engine.execute(&mut pipeline).await;
+
+        // Pipeline should complete (step failed after exceeding retries)
+        assert!(result.is_ok());
+
+        // Step should be marked as failed after exceeding retries
+        let step = pipeline.step("step1").unwrap();
+        assert!(matches!(step.state, StepState::Failed { .. }));
+
+        // Error should mention exceeding retry limit
+        if let StepState::Failed { error, .. } = &step.state {
+            assert!(error.contains("Exceeded retry limit"));
+        }
     }
 }

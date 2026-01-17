@@ -59,6 +59,7 @@ name: "Test: Failure Without Handler"
 steps:
   - id: "task"
     name: "Task"
+    max_retries: 2
     prompt: "Do task"
     termination:
       success_pattern: "✅ SUCCESS"
@@ -67,16 +68,24 @@ steps:
     let config = PipelineConfig::from_yaml(yaml).unwrap();
     let mut pipeline = config.to_pipeline();
 
-    // Task fails (no success pattern, no on_failure)
-    let responses = vec!["Task failed...".to_string()];
+    // Task retries (max_retries=2 means 3 total attempts)
+    // Each attempt fails (no success pattern, no on_failure)
+    let responses = vec![
+        "Task failed...".to_string(),   // attempt 1
+        "Task failed...".to_string(),   // attempt 2 (retry 1)
+        "Task failed...".to_string(),   // attempt 3 (retry 2)
+    ];
 
     let result = run_pipeline_with_mock(&mut pipeline, responses).await.unwrap();
 
     // Assert pipeline failed
     assert_pipeline_failed(&result);
 
-    // Assert task failed
-    assert_step_failed(&result, "task", "termination");
+    // Assert task failed after exceeding retry limit
+    assert_step_failed(&result, "task", "Exceeded retry limit");
+
+    // Assert the task was attempted 3 times (initial + 2 retries)
+    assert_eq!(count_step_executions(&result, "task"), 3);
 }
 
 /// Test failure with explicit on_failure to end pipeline
